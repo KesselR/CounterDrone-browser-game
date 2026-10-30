@@ -334,7 +334,6 @@ const FACADE = {
   nachkrieg: { wall: '#c8bfae', line: '#b2a998', win: '#1c2025', frame: '#e8e4da', ww: 0.62, wh: 0.44, balcol: ['#c7643a', '#3e7aa0', '#d2b040'], shop: { awn: ['#2e6a8a', '#e8e4da'], glass: '#1e262e', sign: '#d8d2c4' } },
   lamelle: { wall: '#3a3d40', line: '#55595c', win: '#141b22', frame: '#2a2d30', ww: 0.58, wh: 0.66, glass: true, lam: '#9a7350', shop: { glass: '#1a232c', sign: '#9a7350' } }
 };
-const HOUSE_TPL = ['pastell', 'jugend', 'klinker', 'nachkrieg', 'lamelle'];
 const facadeCache = {};
 function shopRow(gA, gE, gR, F, y0, cell, S, N, r, litP) { // Erdgeschoss mit Schaufenstern, Ladenschild, Markise und Tür
   const sh = F.shop;
@@ -498,8 +497,9 @@ function initMaterials() {
 //  STADTBAU: Geometrie-Baukasten, Gebäude, Wahrzeichen, Szenarien
 // =====================================================================
 class GB {
-  constructor() { this.p = []; this.n = []; this.u = []; }
-  _v(p, u, v, n) { this.p.push(p[0], p[1], p[2]); this.n.push(n[0], n[1], n[2]); this.u.push(u, v); }
+  static tint = [1, 1, 1]; // Farbton je Haus (Vertexfarbe, wirkt als Multiplikator auf die Textur)
+  constructor() { this.p = []; this.n = []; this.u = []; this.c = []; }
+  _v(p, u, v, n) { const t = GB.tint; this.p.push(p[0], p[1], p[2]); this.n.push(n[0], n[1], n[2]); this.u.push(u, v); this.c.push(t[0], t[1], t[2]); }
   // a unten links, b unten rechts, c oben rechts, d oben links (von außen gesehen). ref = Punkt im Inneren -> Ausrichtung wird erzwungen
   quad(a, b, c, d, u0 = 0, v0 = 0, u1 = 1, v1 = 1, ref) {
     let n = triN(a, b, d);
@@ -518,6 +518,7 @@ class GB {
     g.setAttribute('position', new THREE.Float32BufferAttribute(this.p, 3));
     g.setAttribute('normal', new THREE.Float32BufferAttribute(this.n, 3));
     g.setAttribute('uv', new THREE.Float32BufferAttribute(this.u, 2));
+    g.setAttribute('color', new THREE.Float32BufferAttribute(this.c, 3));
     g.computeBoundingSphere(); return g;
   }
 }
@@ -596,7 +597,7 @@ function prim(grp) {
 
 // ---------- Welt-Zustand ----------
 const world = { group: null, S: null, gbs: {}, excl: [], rivers: [], parks: [], targets: [], glow: [], trees: [], compass: [], hills: [], roofH: 0, roofG: null,
-  crates: [], mountPos: null, searchlights: [], aa: [], blink: [], radarHead: null, steam: [], fmat: {}, waterMats: [], blds: [], propGrid: {} };
+  crates: [], mountPos: null, searchlights: [], aa: [], blink: [], radarHead: null, steam: [], fmat: {}, vcm: [], waterMats: [], blds: [], propGrid: {}, grp: null };
 function groundH(x, z) { let h = 0; for (const k of world.hills) { const dx = x - k.x, dz = z - k.z; h += k.h * Math.exp(-(dx * dx + dz * dz) / (k.r * k.r)); } return h; }
 function gbOf(key) { return world.gbs[key] || (world.gbs[key] = new GB()); }
 const STYLE_DIM = { haussmann: [3.6, 3.6], stone2: [3.4, 3.4], modern: [3.2, 3.8], office: [3.4, 3.6], platte: [3.6, 2.8], gruender: [3.6, 3.9], gruender2: [3.6, 3.9], brick: [3.0, 3.2], brick2: [3.0, 3.2], plaster: [3.2, 3.3],
@@ -621,6 +622,8 @@ function addBuilding(b) {
   const P = (lx, y, lz) => [b.x + lx * c - lz * s, y, b.z + lx * s + lz * c];
   const hw = b.w / 2, hd = b.d / 2, y0 = b.y0, y1 = b.y0 + b.h, ref = [b.x, y0 + b.h * 0.5, b.z];
   const C = [[-hw, -hd], [hw, -hd], [hw, hd], [-hw, hd]], ou = b.ou || 0, ov = b.ov || 0;
+  const wallT = b.tint || [1, 1, 1], roofT = b.rtint || [1, 1, 1], chimT = [roofT[1] * 0.62, roofT[1] * 0.56, roofT[1] * 0.54]; // Schornsteine gedeckt statt leuchtend rot
+  GB.tint = wallT;
   for (let i = 0; i < 4; i++) {
     const p = C[i], q = C[(i + 1) % 4], L = Math.hypot(q[0] - p[0], q[1] - p[1]);
     gw.quad(P(q[0], y0, q[1]), P(p[0], y0, p[1]), P(p[0], y1, p[1]), P(q[0], y1, q[1]), ou, ov, ou + L / tu, ov + b.h / tv, ref);
@@ -628,7 +631,14 @@ function addBuilding(b) {
   const roofRef = [b.x, y0, b.z], topX = b.roof === 'mansard' ? 3.6 : b.roof === 'gable' || b.roof === 'step' ? (b.rh || Math.min(b.d * 0.65, 11)) * 0.6 : 0;
   hmRect(b.x, b.z, hw, hd, b.rot, y1 + topX);
   // genaue Grundrisse in Spielernähe (Bodenkampf: Kollision, Sichtlinien, Geschosse); eigenes Haus mit Brüstung
-  if (Math.hypot(b.x, b.z) < 230) world.blds.push({ x: b.x, z: b.z, c, s, hw, hd, top: y1 + topX, own: !!b.own, par: y1 + 0.9 }); // par: wirksame Brüstungshöhe (Schütze lehnt sich darüber)
+  if (Math.hypot(b.x, b.z) < 230) (world.grp ? world.grp.kids : world.blds).push({ x: b.x, z: b.z, c, s, hw, hd, top: y1 + topX, own: !!b.own, par: y1 + 0.9 }); // par: wirksame Brüstungshöhe (Schütze lehnt sich darüber)
+  GB.tint = roofT;
+  // Gaube: kleiner Dachaufbau mit Fenster (Fensterfeld aus der Fassadentextur) an der Stelle lx/lz, Front zeigt nach sz
+  const dormer = (gr, lx, lz, sz, yb, dep) => {
+    const pp = P(lx, 0, lz - sz * dep / 2); boxInto(gr, pp[0], yb, pp[2], 0.7, dep / 2, 1.7, b.rot, 2);
+    GB.tint = wallT; const zf = lz + sz * 0.03, A = P(lx - 0.55, yb + 0.2, zf), B2 = P(lx + 0.55, yb + 0.2, zf), C2 = P(lx + 0.55, yb + 1.5, zf), D = P(lx - 0.55, yb + 1.5, zf);
+    gw.quad(A, B2, C2, D, 0, 4 / 8, 1 / 8, 5 / 8, P(lx, yb + 0.8, lz - sz * 2)); GB.tint = roofT;
+  };
   if (b.roof === 'flat') {
     const gr = gbOf(b.roofMat || 'gravel');
     gr.quad(P(-hw, y1, hd), P(hw, y1, hd), P(hw, y1, -hd), P(-hw, y1, -hd), 0, 0, b.w / 10, b.d / 10, roofRef);
@@ -641,13 +651,16 @@ function addBuilding(b) {
       gz.quad(P(q[0], y1, q[1]), P(p[0], y1, p[1]), P(p2[0], y1 + mh, p2[1]), P(q2[0], y1 + mh, q2[1]), 0, 0, L / 4, 1, roofRef);
     }
     gz.quad(P(C2[3][0], y1 + mh, C2[3][1]), P(C2[2][0], y1 + mh, C2[2][1]), P(C2[1][0], y1 + mh, C2[1][1]), P(C2[0][0], y1 + mh, C2[0][1]), 0, 0, b.w / 4, b.d / 4, roofRef);
-    if (b.chim) { const gc = gbOf('chimney'); const n = 2 + (b.chim * 3 | 0); for (let k = 0; k < n; k++) { const lx = lerp(-hw + ins + 0.6, hw - ins - 0.6, (k + 0.5) / n), lz = (k % 2 ? 1 : -1) * (hd - ins - 0.4) * 0.8; const pp = P(lx, 0, lz); boxInto(gc, pp[0], y1 + mh - 0.2, pp[2], 0.45, 0.9, 1.6, b.rot, 3); } }
+    if (b.chim) { const gc = gbOf('chimney'); const n = 1 + (b.chim * 2.5 | 0); GB.tint = chimT; for (let k = 0; k < n; k++) { const lx = lerp(-hw + ins + 0.6, hw - ins - 0.6, (k + 0.5) / n), lz = (k % 2 ? 1 : -1) * (hd - ins - 0.4) * 0.8; const pp = P(lx, 0, lz); boxInto(gc, pp[0], y1 + mh - 0.2, pp[2], 0.45, 0.9, 1.6, b.rot, 3); } GB.tint = roofT; }
+    if (b.dorm) { const n = Math.floor((b.w - 2 * ins) / 3.6); for (const sz of [-1, 1]) for (let k = 0; k < n; k++) if (r01(b, k + sz) < 0.8) dormer(gz, -hw + ins + (k + 0.5) * (b.w - 2 * ins) / n, sz * (hd - ins * 0.25), sz, y1 + 0.55, ins * 0.9); }
   } else if (b.roof === 'gable' || b.roof === 'step') {
     const rh = b.rh || Math.min(b.d * 0.65, 11), gr = gbOf(b.roofMat || 'tiles');
+    if (b.dorm && rh > 3.5 && b.w > 5) { const n = Math.max(1, Math.floor(b.w / 4.5)); for (const sz of [-1, 1]) for (let k = 0; k < n; k++) if (r01(b, k + sz) < 0.6) dormer(gr, -hw + (k + 0.5) * b.w / n, sz * hd * 0.6, sz, y1 + rh * 0.4 - 0.2, hd * 0.45); }
+    if (b.chim) { const gc = gbOf('chimney'), lx = (b.chim - 0.5) * (b.w - 2), pp = P(lx, 0, 0); GB.tint = chimT; boxInto(gc, pp[0], y1 + rh - 1.2, pp[2], 0.4, 0.55, 2.4, b.rot, 3); GB.tint = roofT; }
     gr.quad(P(hw, y1, -hd), P(-hw, y1, -hd), P(-hw, y1 + rh, 0), P(hw, y1 + rh, 0), 0, 0, b.w / 4, hd / 4, roofRef);
     gr.quad(P(-hw, y1, hd), P(hw, y1, hd), P(hw, y1 + rh, 0), P(-hw, y1 + rh, 0), 0, 0, b.w / 4, hd / 4, roofRef);
     for (const sx of [-1, 1]) {
-      const X = sx * hw;
+      const X = sx * hw; GB.tint = wallT;
       if (b.roof === 'gable') {
         gw.tri(P(X, y1, -hd), P(X, y1, hd), P(X, y1 + rh, 0), [ou, ov + b.h / tv], [ou + b.d / tu, ov + b.h / tv], [ou + b.d / 2 / tu, ov + (b.h + rh) / tv], ref);
       } else {
@@ -657,12 +670,15 @@ function addBuilding(b) {
           const uvA = [ou, ov + (yb - y0) / tv], v1 = ov + (yt - y0) / tv;
           gw.quad(P(X2, yb, -zh), P(X2, yb, zh), P(X2, yt, zh), P(X2, yt, -zh), uvA[0], uvA[1], uvA[0] + zh * 2 / tu, v1, ref);
           gw.quad(P(X2 - sx * 0.35, yb, -zh), P(X2 - sx * 0.35, yb, zh), P(X2 - sx * 0.35, yt, zh), P(X2 - sx * 0.35, yt, -zh), 0, 0, 0.1, 0.1, [b.x + sx * (hw + 10), yb, b.z]);
-          gr.quad(P(X2 - sx * 0.35, yt, -zh), P(X2, yt, -zh), P(X2, yt, zh), P(X2 - sx * 0.35, yt, zh), 0, 0, 0.2, 0.2, [ref[0], yt - 5, ref[2]]);
+          GB.tint = roofT; gr.quad(P(X2 - sx * 0.35, yt, -zh), P(X2, yt, -zh), P(X2, yt, zh), P(X2 - sx * 0.35, yt, zh), 0, 0, 0.2, 0.2, [ref[0], yt - 5, ref[2]]); GB.tint = wallT;
         }
       }
     }
   }
+  GB.tint = [1, 1, 1];
 }
+// feste Pseudozufallszahl 0..1 aus Hausposition und Index (Gauben bleiben bei jedem Laden gleich)
+function r01(b, k) { const v = Math.sin(b.x * 12.9898 + b.z * 78.233 + k * 37.719) * 43758.5453; return v - Math.floor(v); }
 
 // ---------- Wahrzeichen ----------
 const V = (x, y, z) => new THREE.Vector3(x, y, z);
@@ -915,7 +931,8 @@ const SCEN = {
         if (d > 3500 && h > 270 && h < 310) return { style: pick(['modern', 'office']), h: [40, 120], roof: 'flat' };
         return { style: r() < 0.7 ? 'stone2' : pick(['office', 'haussmann']), h: [14, 30], roof: 'flat' };
       }
-      return { styles: ['haussmann', 'haussmann', 'haussmann', 'stone2', 'pastell', 'pastell', 'jugend', 'jugend', 'nachkrieg', 'klinker', 'lamelle'], flat: ['nachkrieg', 'lamelle'], h: ring ? [17, 24] : [18, 23], roof: 'mansard', split: ring ? 2 : 3, chim: ring === 0 };
+      return { styles: ['haussmann', 'haussmann', 'haussmann', 'stone2', 'pastell', 'pastell', 'jugend', 'jugend', 'nachkrieg', 'klinker', 'lamelle'], flat: ['nachkrieg', 'lamelle'], h: ring ? [17, 24] : [18, 23], hv: 0.2, roof: 'mansard', chim: ring === 0,
+        lot: [8, 15], alt: { flat: 0.07, gable: 0.06 }, roofMats: ['slate'], kinds: { rand: 0.45, doppel: 0.27, reihe: 0.1, solo: 0.12, luecke: 0.06 }, solo: ['stone2', 'nachkrieg', 'haussmann', 'office'] };
     }
   },
   leipzig: {
@@ -953,7 +970,8 @@ const SCEN = {
       }
       if (ring === 1 && r() < 0.18) return { style: 'platte', h: [20, 36], roof: 'flat', slab: true };
       return { styles: ['gruender', 'gruender2', 'gruender', 'office', 'modern', 'plaster', 'jugend', 'jugend', 'pastell', 'nachkrieg', 'nachkrieg', 'klinker', 'lamelle', 'lamelle'],
-        flat: ['office', 'modern', 'plaster', 'nachkrieg', 'lamelle'], h: ring ? [15, 24] : [18, 32], roof: 'gable', roofMat: 'slate', split: 2 };
+        flat: ['office', 'modern', 'nachkrieg', 'lamelle'], h: ring ? [15, 24] : [16, 28], hv: 0.3, roof: 'gable', roofMat: 'slate',
+        lot: [9, 17], alt: { mansard: 0.15, flat: 0.1 }, gs: 0.12, roofMats: ['slate', 'slate', 'tiles'], kinds: { rand: 0.4, doppel: 0.27, reihe: 0.1, solo: 0.16, luecke: 0.07 }, solo: ['office', 'modern', 'platte', 'nachkrieg', 'gruender'] };
     }
   },
   luebeck: {
@@ -982,9 +1000,11 @@ const SCEN = {
     searchlights: 5, aa: 4,
     district(x, z, d, r, ring) {
       const island = x > 470 && x < 1460 && Math.abs(z) < 1300;
-      if (island) return { style: pick(['brick', 'brick', 'brick2', 'plaster']), h: [9, 15], roof: r() < 0.65 ? 'step' : 'gable', roofMat: 'tiles', split: 3, narrow: true };
+      if (island) return { styles: ['brick', 'brick', 'brick2', 'plaster', 'klinker', 'pastell'], h: [9, 15], hv: 0.3, roof: 'gable', roofMats: ['tiles'], narrow: true, // Giebelhäuser der Altstadt
+        lot: [5, 8], gs: 0.9, step: 0.6, kinds: { doppel: 0.6, reihe: 0.25, rand: 0.15 } };
       if (ring === 2) return { style: pick(['plaster', 'gruender2', 'brick2', 'platte']), h: [8, 16], roof: r() < 0.6 ? 'gable' : 'flat', roofMat: 'tiles' };
-      return { styles: ['gruender2', 'plaster', 'brick2', 'gruender', 'klinker', 'klinker', 'pastell', 'pastell', 'jugend', 'nachkrieg', 'lamelle'], flat: r() < 0.3 ? HOUSE_TPL : ['nachkrieg', 'lamelle'], h: d < 400 ? [9, 14] : [12, 19], roof: 'gable', roofMat: r() < 0.5 ? 'tiles' : 'slate', split: 2 };
+      return { styles: ['gruender2', 'plaster', 'brick2', 'gruender', 'klinker', 'klinker', 'pastell', 'pastell', 'jugend', 'nachkrieg', 'lamelle'], flat: ['nachkrieg', 'lamelle'], h: d < 400 ? [9, 14] : [12, 19], hv: 0.3, roof: 'gable',
+        lot: [6, 11], alt: { flat: 0.06, mansard: 0.05 }, gs: 0.4, step: 0.3, roofMats: ['tiles', 'tiles', 'slate'], kinds: { rand: 0.3, doppel: 0.33, reihe: 0.2, solo: 0.09, luecke: 0.08 }, solo: ['brick2', 'plaster', 'nachkrieg', 'klinker'] };
     }
   }
 };
@@ -1023,6 +1043,7 @@ function genCity(S) {
       if (blocked(x, z, R.cell * 0.42)) continue;
       const sp = S.district(x, z, d, r, ri); if (!sp) continue;
       const bw = R.cell - R.street * (0.8 + r() * 0.4), bd = R.cell - R.street * (0.8 + r() * 0.4), y0 = groundH(x, z) - 0.6;
+      if (sp.kinds && ri < 2) { cityBlock(S, sp, r, ri, x, z, d, bw, bd, y0); continue; }
       const parts = sp.slab ? 1 : (sp.split || 1);
       for (let k = 0; k < parts; k++) {
         let w = bw / parts, cxl = -bw / 2 + w * (k + 0.5), dd = bd, czl = 0;
@@ -1032,13 +1053,99 @@ function genCity(S) {
         const narrow = sp.narrow, style = sp.styles ? sp.styles[(r() * sp.styles.length) | 0] : sp.style; // Hausvorlage je Gebäude
         const roof = sp.flat && sp.flat.includes(style) ? 'flat' : sp.roof;
         const b = { x: bx, z: bz, w: narrow ? dd : w - 0.2, d: narrow ? w - 0.3 : dd, rot: S.gridRot + (narrow ? Math.PI / 2 : 0), y0, h, style, roof, roofMat: sp.roofMat,
-          ou: Math.floor(r() * 8) / 8, ov: 0, chim: sp.chim && roof === 'mansard' ? r() : 0 };
+          ou: Math.floor(r() * 8) / 8, ov: 0, chim: sp.chim && roof === 'mansard' ? r() : 0, tint: houseTint(style, r), rtint: roofTint(r) };
         if (ri === 2 && b.roof === 'mansard') b.roof = 'flat';
         addBuilding(b);
         if (d > 110 && d < 950 && ri < 2 && r() < 0.06) world.targets.push({ p: V(bx, y0 + h + 2, bz), name: 'Wohnblock', w: 1 });
       }
     }
   });
+}
+// Farbtöne der Häuser (Multiplikator auf die Fassadentextur): Putzfassaden stark, Naturstein und Klinker schwach
+const TINTS = [[1, 1, 1], [1.05, 0.9, 0.8], [1.06, 1.0, 0.76], [0.84, 0.94, 1.05], [0.9, 1.03, 0.88], [1.08, 0.93, 0.92], [0.78, 0.78, 0.8], [1.12, 1.08, 1.0], [0.95, 0.85, 0.75]];
+const TINT_AMT = { pastell: 1, plaster: 1, nachkrieg: 0.8, jugend: 0.7, gruender: 0.6, gruender2: 0.7, platte: 0.5, office: 0.4, stone2: 0.4, haussmann: 0.35, modern: 0.3, brick: 0.3, brick2: 0.3, klinker: 0.3, lamelle: 0.25 };
+function houseTint(style, r) { const t = TINTS[(r() * TINTS.length) | 0], a = TINT_AMT[style] ?? 0.4, l = 0.86 + r() * 0.24; return t.map(c => lerp(1, c, a) * l); }
+function roofTint(r) { const l = 0.72 + r() * 0.4, w = r() * 0.12; return [l * (1 + w), l, l * (1 - w)]; }
+function pickW(w, r) { let x = r() * Object.values(w).reduce((a, b) => a + b, 0); for (const k in w) if ((x -= w[k]) <= 0) return k; return Object.keys(w)[0]; }
+// Stadtblock aus aneinandergebauten Häusern mit eigener Breite, Höhe, Dachform und Farbe.
+// Blocktypen: Blockrand mit Innenhof, Doppelzeile Rücken an Rücken, einseitige Zeile, Einzelbau (auch als Winkel), Baulücke mit Bäumen
+function cityBlock(S, sp, r, ri, x, z, d, bw, bd, y0) {
+  const cr = Math.cos(S.gridRot), sr = Math.sin(S.gridRot), near = d < 260, U = bw / 2, Vh = bd / 2, m = Math.min(bw, bd);
+  const W = (u, v) => [x + u * cr - v * sr, z + u * sr + v * cr];
+  const sc = ri && !sp.narrow ? 1.6 : 1, lot = [sp.lot[0] * sc, sp.lot[1] * sc], hv = sp.hv || 0.25;
+  const hb = lerp(sp.h[0], sp.h[1], r()) * (d < 120 ? 0.9 : 1);
+  const tree = (u, v) => { const [tx, tz] = W(u, v); world.trees.push([tx, tz]); if (Math.hypot(tx, tz) < 230) propGridAdd(tx, tz, 0.4); };
+  world.grp = { kids: [] };
+  // ein Haus: Mittelpunkt (u, v) im Block, Länge len an der Straße, Tiefe dep; along = Zeile läuft entlang v
+  const house = (u, v, len, dep, along, corner, o = {}) => {
+    const style = o.style || (sp.styles ? sp.styles[(r() * sp.styles.length) | 0] : sp.style), fh = STYLE_DIM[style][1];
+    let roof = o.roof || (sp.flat && sp.flat.includes(style) ? 'flat' : sp.roof);
+    if (!o.roof && roof !== 'flat' && sp.alt) for (const k in sp.alt) if (r() < sp.alt[k]) { roof = k; break; }
+    const gs = roof === 'gable' && len < 11 && dep < 16 && r() < (sp.gs || 0); // giebelständig: Giebel zeigt zur Straße
+    if (gs && r() < (sp.step || 0)) roof = 'step';
+    const floors = Math.max(2, Math.round(hb * (o.hm || 1) * (1 - hv + r() * 2 * hv) / fh) + (corner && r() < 0.4 ? 1 : 0)); // Eckhäuser oft ein Geschoss höher
+    const [bx, bz] = W(u, v);
+    const b = { x: bx, z: bz, w: (gs ? dep : len) - 0.04, d: (gs ? len : dep) - 0.04, rot: S.gridRot + (along ? Math.PI / 2 : 0) + (gs ? Math.PI / 2 : 0), y0, h: floors * fh + 0.4, style, roof,
+      roofMat: sp.roofMats ? sp.roofMats[(r() * sp.roofMats.length) | 0] : sp.roofMat, ou: Math.floor(r() * 8) / 8, ov: 0, tint: houseTint(style, r), rtint: roofTint(r),
+      chim: (roof === 'mansard' && sp.chim) || (roof === 'gable' && ri === 0 && r() < 0.5) ? r() : 0, dorm: near && roof !== 'flat' && r() < 0.65 };
+    addBuilding(b);
+    if (d > 110 && d < 950 && r() < 0.015) world.targets.push({ p: V(bx, y0 + b.h + 2, bz), name: 'Wohnblock', w: 1 });
+  };
+  // Häuserzeile von a0 bis a1; edge = Straßenkante quer zur Zeile, sgn = Richtung ins Blockinnere
+  const row = (a0, a1, along, edge, sgn, dep, cornA, cornB, gaps) => {
+    for (let t = a0; a1 - t > 0.5;) {
+      let w = lot[0] + r() * (lot[1] - lot[0]); if (a1 - t - w < lot[0] * 0.8) w = a1 - t;
+      const first = t === a0, last = t + w >= a1 - 1e-6, corner = (first && cornA) || (last && cornB), c = t + w / 2;
+      if (gaps && !corner && r() < 0.06) { if (d < 900) { const o = edge + sgn * dep * 0.5; along ? tree(o, c) : tree(c, o); } } // Baulücke
+      else {
+        const sb = !corner && r() < 0.35 ? r() * 0.7 : 0, dd = (corner ? dep : dep * (0.82 + r() * 0.18)) - sb; // Vor- und Rücksprünge der Bauflucht
+        const o = edge + sgn * (sb + dd / 2);
+        along ? house(o, c, w, dd, 1, corner) : house(c, o, w, dd, 0, corner);
+      }
+      t += w;
+    }
+  };
+  const k = pickW(sp.kinds, r), kind = k === 'rand' && m < 17 ? 'doppel' : k, flip = r() < 0.5;
+  if (kind === 'rand') { // Blockrand: vier Zeilen um einen Innenhof
+    const dep = clamp(m * (ri ? 0.3 : 0.36), 6.5, ri ? 13 : 10);
+    row(-U, U, 0, -Vh, 1, dep, true, true, true); row(-U, U, 0, Vh, -1, dep, true, true, true);
+    row(-Vh + dep, Vh - dep, 1, -U, 1, dep, false, false, true); row(-Vh + dep, Vh - dep, 1, U, -1, dep, false, false, true);
+    if (m - 2 * dep > 7 && d < 1200) for (let i = 0, n = 1 + (r() * 2 | 0); i < n; i++) tree((r() - 0.5) * (bw - 2 * dep - 6), (r() - 0.5) * (bd - 2 * dep - 6));
+  } else if (kind === 'doppel') { // zwei Zeilen Rücken an Rücken, Häuser zu beiden Straßen
+    const f = 0.42 + r() * 0.16;
+    if (flip) { row(-U, U, 0, -Vh, 1, bd * f, true, true, true); row(-U, U, 0, Vh, -1, bd * (1 - f), true, true, true); }
+    else { row(-Vh, Vh, 1, -U, 1, bw * f, true, true, true); row(-Vh, Vh, 1, U, -1, bw * (1 - f), true, true, true); }
+  } else if (kind === 'reihe') { // eine Zeile, dahinter Gärten
+    const s = r() < 0.5 ? 1 : -1, dep = (flip ? bd : bw) * (0.6 + r() * 0.2);
+    if (flip) row(-U, U, 0, -s * Vh, s, dep, true, true, false); else row(-Vh, Vh, 1, -s * U, s, dep, true, true, false);
+    if (d < 900) for (let i = 0; i < 2; i++) { const a = (r() - 0.5) * 0.7, b2 = s * dep * 0.5; flip ? tree(a * bw, b2) : tree(b2, a * bd); } // Bäume in der Mitte des Gartenstreifens
+  } else if (kind === 'solo') { // Einzelbau, oft als Winkel mit niedrigerem oder höherem Seitenflügel
+    const st = pick(sp.solo || [sp.styles ? sp.styles[0] : sp.style]), ins = 0.6 + r() * 1.6, wM = bw - 2 * ins, dM = bd - 2 * ins;
+    const roof = sp.flat && sp.flat.includes(st) || st === 'office' || st === 'platte' || r() < 0.4 ? 'flat' : sp.roof;
+    if (r() < 0.5) {
+      const dA = dM * (0.45 + r() * 0.15), wB = wM * (0.35 + r() * 0.15), sx = r() < 0.5 ? -1 : 1;
+      house(0, -Vh + ins + dA / 2, wM, dA, 0, true, { style: st, roof, hm: 1.1 + r() * 0.4 });
+      house(sx * (wM / 2 - wB / 2), -Vh + ins + dA + (dM - dA) / 2, wB, dM - dA, 0, false, { style: r() < 0.6 ? st : undefined, roof: r() < 0.5 ? roof : undefined, hm: 0.6 + r() * 0.5 });
+      if (d < 900) tree(-sx * wM * 0.25, Vh - ins - (dM - dA) * 0.45);
+    } else house(0, 0, wM, dM, 0, true, { style: st, roof, hm: 1.0 + r() * 0.6 });
+  } else { // Baulücke: nur eine schmale Zeile an der Straße, dahinter Bäume
+    const dep = Math.min(9 + r() * 3, (flip ? bd : bw) * 0.5);
+    if (flip) row(-U, U, 0, -Vh, 1, dep, true, true, false); else row(-Vh, Vh, 1, -U, 1, dep, true, true, false);
+    if (d < 1500) for (let i = 0, n = 2 + (r() * 3 | 0); i < n; i++) { const a = (r() - 0.5) * 0.75, b2 = dep + 3 + r() * ((flip ? bd : bw) - dep - 6); flip ? tree(a * bw, -Vh + b2) : tree(-U + b2, a * bd); }
+  }
+  // Umriss des Blocks für schnelle Treffer- und Wegeprüfung
+  const g = world.grp; world.grp = null;
+  if (!g.kids.length) return;
+  let u0 = 1e9, u1 = -1e9, v0 = 1e9, v1 = -1e9, top = 0;
+  for (const q of g.kids) {
+    top = Math.max(top, q.top);
+    for (const [a, b2] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) {
+      const wx = q.x + a * q.hw * q.c - b2 * q.hd * q.s - x, wz = q.z + a * q.hw * q.s + b2 * q.hd * q.c - z, u = wx * cr + wz * sr, v = -wx * sr + wz * cr;
+      u0 = Math.min(u0, u); u1 = Math.max(u1, u); v0 = Math.min(v0, v); v1 = Math.max(v1, v);
+    }
+  }
+  const [gx, gz] = W((u0 + u1) / 2, (v0 + v1) / 2);
+  world.blds.push({ x: gx, z: gz, c: cr, s: sr, hw: (u1 - u0) / 2 + 0.01, hd: (v1 - v0) / 2 + 0.01, top, kids: g.kids });
 }
 // ---------- Straßenmöblierung in Spielernähe: Laternen, Bänke, Mülleimer, Bäume ----------
 function propGridAdd(x, z, r) { const k = Math.floor(x / 8) + ',' + Math.floor(z / 8); (world.propGrid[k] || (world.propGrid[k] = [])).push({ x, z, r }); }
@@ -1054,7 +1161,7 @@ function addStreetProps(S) {
   const th0 = -S.viewHdg * DEG, lbx = -6.6 * Math.cos(th0) + 11.5 * Math.sin(th0), lbz = 6.6 * Math.sin(th0) + 11.5 * Math.cos(th0); // Aufzugsausgang
   const ok = (x, z, rad) => {
     if (Math.hypot(x, z) > R || Math.hypot(x - lbx, z - lbz) < 3.5) return false;
-    for (const B of world.blds) if (inBld(B, x, z, rad)) return false;
+    if (bldHit(x, z, rad)) return false;
     for (const e of world.excl) if (Math.hypot(x - e.x, z - e.z) < e.r) return false;
     for (const rv of world.rivers) if (distToPoly(x, z, rv.pts) < rv.w / 2 + 6) return false;
     return !propHit(x, z, rad);
@@ -1231,9 +1338,10 @@ function disposeGroup(g) { g.traverse(o => { if (o.geometry) o.geometry.dispose(
 function buildLevel(id) {
   if (world.group) { scene.remove(world.group); disposeGroup(world.group); }
   for (const k in world.fmat) world.fmat[k].dispose();
+  for (const m of world.vcm) m.dispose();
   const S = SCEN[id];
   Object.assign(world, { group: new THREE.Group(), S, gbs: {}, excl: [], rivers: S.rivers, parks: S.parks, targets: [], glow: [], trees: [], compass: [], hills: [],
-    roofH: S.roofH, crates: [], searchlights: [], aa: [], blink: [], steam: [], fmat: {}, blds: [], propGrid: {} });
+    roofH: S.roofH, crates: [], searchlights: [], aa: [], blink: [], steam: [], fmat: {}, vcm: [], blds: [], propGrid: {} });
   for (const h of S.hills) { const [x, z] = h.x !== undefined ? [h.x, h.z] : polar(h.hdg, h.d); world.hills.push({ x, z, r: h.r, h: h.h }); }
   hmReset();
   applyAtmos(S);
@@ -1274,7 +1382,10 @@ function buildLevel(id) {
   // Gebäude der eigenen Stellung (sichtbar aus der Drohne)
   addBuilding({ x: 0, z: 0, w: 20, d: 20, rot: S.viewHdg * DEG, y0: -0.5, h: S.roofH + 0.5, style: S.playerFacade, roof: 'none', own: true });
   // Stadt-Meshes
-  for (const k in world.gbs) { const gb = world.gbs[k]; if (gb.empty) continue; const m = new THREE.Mesh(gb.build(), matForKey(k)); world.group.add(m); }
+  for (const k in world.gbs) { // Kopie des Materials mit Vertexfarben: jedes Haus behält seinen eigenen Farbton
+    const gb = world.gbs[k]; if (gb.empty) continue; const mat = matForKey(k).clone(); mat.vertexColors = true; world.vcm.push(mat);
+    world.group.add(new THREE.Mesh(gb.build(), mat));
+  }
   if (world.trees.length) world.group.add(treesMesh(world.trees));
   // Spielerdach
   buildRoof(S);
@@ -3085,27 +3196,35 @@ const hidden = d => !!d.T.ground && !d.los; // Bodengegner hinter Hauswänden: k
 const _gE = new THREE.Vector3(), _gD = new THREE.Vector3(), _gM = new THREE.Vector3(), _gC = new THREE.Vector3();
 // ---------- Gebäude: Begehbarkeit, Sichtlinien, Geschosse ----------
 function inBld(B, x, z, r) { const dx = x - B.x, dz = z - B.z, u = dx * B.c + dz * B.s, v = -dx * B.s + dz * B.c; return Math.abs(u) < B.hw + r && Math.abs(v) < B.hd + r; }
+// world.blds enthält Einzelhäuser und Häuserblöcke (Umriss + kids); ein Block wird nur bei Treffer seines Umrisses genauer geprüft
+function bldHit(x, z, r) { for (const B of world.blds) if (inBld(B, x, z, r) && (!B.kids || B.kids.some(k => inBld(k, x, z, r)))) return true; return false; }
 function walkBlocked(x, z, r, lim = LAND.radius, props = true) { // props: Laternen, Bänke, Bäume (Panzer walzen darüber)
   if (Math.hypot(x, z) > lim) return true;
   if (props && propHit(x, z, r)) return true;
-  for (const B of world.blds) if (inBld(B, x, z, r)) return true;
+  if (bldHit(x, z, r)) return true;
   for (const e of world.excl) if (Math.hypot(x - e.x, z - e.z) < e.r * 0.45 + r) return true;
   for (const rv of world.rivers) if (distToPoly(x, z, rv.pts) < rv.w / 2 + r) return true;
   return false;
 }
 // erster Treffpunkt (0..1) einer Strecke mit einem Gebäude, sonst -1; eigenes Haus: Dachboden + Brüstung am Rand
+function segBox(B, a, b, dy) { // Treffpunkt (0..1) der Strecke mit einem Hausquader, sonst 2
+  const ax = a.x - B.x, az = a.z - B.z, bx = b.x - B.x, bz = b.z - B.z;
+  const u0 = ax * B.c + az * B.s, v0 = -ax * B.s + az * B.c, du = bx * B.c + bz * B.s - u0, dv = -bx * B.s + bz * B.c - v0;
+  let t0 = 0, t1 = 1, best = 2;
+  if (Math.abs(du) < 1e-9) { if (Math.abs(u0) >= B.hw) return 2; } else { let p = (-B.hw - u0) / du, q = (B.hw - u0) / du; if (p > q) { const k = p; p = q; q = k; } if (p > t0) t0 = p; if (q < t1) t1 = q; if (t0 >= t1) return 2; }
+  if (Math.abs(dv) < 1e-9) { if (Math.abs(v0) >= B.hd) return 2; } else { let p = (-B.hd - v0) / dv, q = (B.hd - v0) / dv; if (p > q) { const k = p; p = q; q = k; } if (p > t0) t0 = p; if (q < t1) t1 = q; if (t0 >= t1) return 2; }
+  if (B.own) { if (t0 > 0 && a.y + dy * t0 < B.par) best = t0; if (t1 < 1 && a.y + dy * t1 < B.par && t1 < best) best = t1; }
+  const y0 = a.y + dy * t0, y1 = a.y + dy * t1;
+  if (y0 < B.top) { if (t0 < best) best = t0; }
+  else if (y1 < B.top) { const t = (B.top - a.y) / dy; if (t < best) best = t; }
+  return best;
+}
 function segBlock(a, b) {
   let best = 2; const dy = b.y - a.y;
   for (const B of world.blds) {
-    const ax = a.x - B.x, az = a.z - B.z, bx = b.x - B.x, bz = b.z - B.z;
-    const u0 = ax * B.c + az * B.s, v0 = -ax * B.s + az * B.c, du = bx * B.c + bz * B.s - u0, dv = -bx * B.s + bz * B.c - v0;
-    let t0 = 0, t1 = 1;
-    if (Math.abs(du) < 1e-9) { if (Math.abs(u0) >= B.hw) continue; } else { let p = (-B.hw - u0) / du, q = (B.hw - u0) / du; if (p > q) { const k = p; p = q; q = k; } if (p > t0) t0 = p; if (q < t1) t1 = q; if (t0 >= t1) continue; }
-    if (Math.abs(dv) < 1e-9) { if (Math.abs(v0) >= B.hd) continue; } else { let p = (-B.hd - v0) / dv, q = (B.hd - v0) / dv; if (p > q) { const k = p; p = q; q = k; } if (p > t0) t0 = p; if (q < t1) t1 = q; if (t0 >= t1) continue; }
-    if (B.own) { if (t0 > 0 && a.y + dy * t0 < B.par && t0 < best) best = t0; if (t1 < 1 && a.y + dy * t1 < B.par && t1 < best) best = t1; }
-    const y0 = a.y + dy * t0, y1 = a.y + dy * t1;
-    if (y0 < B.top) { if (t0 < best) best = t0; }
-    else if (y1 < B.top) { const t = (B.top - a.y) / dy; if (t < best) best = t; }
+    const t = segBox(B, a, b, dy); if (t >= best) continue; // Häuser im Block liegen im Umriss: ihr Treffpunkt kommt nie vor dem des Umrisses
+    if (!B.kids) { best = t; continue; }
+    for (const k of B.kids) { const tk = segBox(k, a, b, dy); if (tk < best) best = tk; }
   }
   return best <= 1 ? best : -1;
 }
