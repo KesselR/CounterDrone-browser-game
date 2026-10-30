@@ -1862,7 +1862,7 @@ function updateDrones(dt) {
   // Abwurfmunition
   for (let i = drops.length - 1; i >= 0; i--) {
     const b = drops[i]; b.vel.y -= GRAV * dt; const bp0 = _v4.copy(b.pos); b.pos.addScaledVector(b.vel, dt);
-    if (G.gm === 'land' && segBlock(bp0, b.pos) >= 0) { b.pos.copy(bp0); b.vel.x *= -0.35; b.vel.z *= -0.35; } // Handgranate prallt von Hauswänden ab
+    if ((G.gm === 'land' || G.street) && segBlock(bp0, b.pos) >= 0) { b.pos.copy(bp0); b.vel.x *= -0.35; b.vel.z *= -0.35; } // Handgranate prallt von Hauswänden ab
     b.mesh.position.copy(b.pos); b.mesh.rotation.x = Math.atan2(-b.vel.y, Math.hypot(b.vel.x, b.vel.z)) - Math.PI / 2;
     const gy = groundAt(b.pos);
     if (b.pos.y <= gy + 0.1) {
@@ -2380,7 +2380,7 @@ function updateBullets(dt) {
       const cx = p0.x + seg.x * t - d.pos.x, cy = p0.y + seg.y * t - d.pos.y, cz = p0.z + seg.z * t - d.pos.z;
       if (cx * cx + cy * cy + cz * cz < d.T.r * d.T.r && t < bt) { bt = t; hit = d; }
     }
-    if (G.gm === 'land') { // Hauswände halten Geschosse auf
+    if (G.gm === 'land' || G.street) { // Hauswände halten Geschosse auf (auch auf der Straße in der Drohnenabwehr)
       const wt = segBlock(p0, b.pos);
       if (wt >= 0 && (!hit || wt < bt)) { const wp = p0.clone().addScaledVector(seg, wt); fxSparks(wp, 3); b.dead = true; bullets.splice(i, 1); continue; }
     }
@@ -2502,7 +2502,7 @@ function updateMissiles(dt) {
       }
     }
     if (hit) { missileDetonate(m, hp, hit); removeMissile(i); continue; }
-    if (m.flown > 8 && (m.pos.y < groundAt(m.pos) + 0.1 || (G.gm === 'land' ? segBlock(m.prev, m.pos) >= 0 : m.pos.y < hmAt(m.pos.x, m.pos.z)))) { explode(m.pos, 0.9, { ground: true }); missileDetonate(m, m.pos, null); removeMissile(i); continue; }
+    if (m.flown > 8 && (m.pos.y < groundAt(m.pos) + 0.1 || (G.gm === 'land' || G.street ? segBlock(m.prev, m.pos) >= 0 : m.pos.y < hmAt(m.pos.x, m.pos.z)))) { explode(m.pos, 0.9, { ground: true }); missileDetonate(m, m.pos, null); removeMissile(i); continue; }
     if (m.pos.distanceTo(m.o) > JAV.maxRange || m.t > 8) { explode(m.pos, 0.6, { air: true }); msg('FLUGKÖRPER · SELBSTZERLEGUNG', AMB, 2); removeMissile(i); continue; }
     // Darstellung: Flamme, Rauchspur
     m.mesh.position.copy(m.pos); m.mesh.lookAt(_v3.copy(m.pos).add(m.vel));
@@ -2719,7 +2719,7 @@ function cycleLock() {
 function waveDef(n) {
   if (G.gm === 'land') { // ein paar Soldaten je Welle, alle 5 Wellen ein stärkerer Kampfpanzer
     const q = [], dur = 14 + n * 3;
-    const c = Math.min(3 + n, 14), nA = n >= 3 ? Math.min(5, Math.floor((n - 1) / 2)) : 0, nC = n >= 4 ? Math.min(3, 1 + Math.floor((n - 4) / 4)) : 0;
+    const c = Math.min(3 + n, 14), nA = Math.min(5, Math.max(1, Math.floor((n - 1) / 2))), nC = Math.min(3, Math.max(1, 1 + Math.floor((n - 4) / 4))); // ab Welle 1 je mindestens ein Sturmsoldat und ein Kommandant
     for (let i = 0; i < c; i++) q.push({ type: i < nA ? 'assault' : i < nA + nC ? 'commander' : 'soldier', t: rand(1, dur) });
     if (n % 5 === 0) q.push({ type: 'tank', t: 5, lvl: n / 5 });
     return q.sort((a, b) => a.t - b.t);
@@ -3420,7 +3420,7 @@ function killGround(d) {
 }
 // ---------- Aufzug Dach ↔ Straße und Bewegung auf der Straße ----------
 function nearLift() {
-  if (G.gm !== 'land' || G.lift || P.onMount || G.play === 'drone' || !world.liftTop) return false;
+  if (G.lift || P.onMount || G.play === 'drone' || !world.liftTop) return false; // Aufzug in beiden Spielmodi
   const p = G.street ? world.liftBot : world.liftTop;
   return Math.hypot(camera.position.x - p.x, camera.position.z - p.z) < 1.8;
 }
@@ -3636,7 +3636,7 @@ function buildMenu() {
   const mkCard = (sel, html, onclick) => { const c = document.createElement('div'); c.className = 'card' + (sel ? ' sel' : ''); c.innerHTML = html; c.onclick = onclick; return c; };
   const rg = $('rowGm'); rg.innerHTML = '';
   for (const [id, name, sub, txt, spec] of [
-    ['air', 'DROHNENABWEHR', 'LUFTANGRIFF AUF DIE STADT', 'Kleindrohnen, Shahed und Geran greifen die Stadt an. Verteidigung vom Dach aus mit Gewehren, MG6, Javelin und Abfangdrohne.', 'GEGNER: DROHNEN · SPIELENDE: STADTSCHUTZ 0 % ODER GEFALLEN'],
+    ['air', 'DROHNENABWEHR', 'LUFTANGRIFF AUF DIE STADT', 'Kleindrohnen, Shahed und Geran greifen die Stadt an. Verteidigung vom Dach aus mit Gewehren, Javelin und Abfangdrohne, mit dem Aufzug auch von der Straße und den MG6-Lafetten vor dem Haus.', 'GEGNER: DROHNEN · SPIELENDE: STADTSCHUTZ 0 % ODER GEFALLEN'],
     ['land', 'BODENKAMPF', 'INFANTERIE UND KAMPFPANZER', 'Feindliche Soldaten rücken durch die Gassen auf die Stellung vor. Mit dem Aufzug vom Dach auf die Straße (100 m Umkreis). Alle 5 Wellen ein Kampfpanzer – jeder stärker.', 'GEGNER: SOLDATEN · PANZER IN WELLE 5, 10, 15 … · SPIELENDE: GEFALLEN']]) {
     rg.appendChild(mkCard(G.gm === id, `<h3>${name}</h3><div class="s">${sub}</div><p>${txt}</p><div class="spec">${spec}</div>`, () => { G.gm = id; savePrefs(); buildMenu(); }));
   }
@@ -3678,6 +3678,7 @@ function corners(x, y, s, col, lw = 1.5, k = 0.3) {
   hx.stroke();
 }
 function bar(x, y, w, h, f, col, bg = 'rgba(255,255,255,.12)') { hx.fillStyle = bg; hx.fillRect(x, y, w, h); hx.fillStyle = col; hx.fillRect(x, y, w * clamp(f, 0, 1), h); }
+const _np = new THREE.Vector3();
 const viewHdg = () => { const v = camera.getWorldDirection(_v2); return headingOf(v.x, v.z); };
 const angDiff = (a, b) => ((a - b + 540) % 360) - 180;
 const pxPerM = d => (HH / 2) / Math.tan(camera.fov * DEG / 2) / d;
@@ -3696,7 +3697,13 @@ function drawHUD() {
     if (optic && (W.missile ? dist < JAV.lockRange : G.mode === 'smash' && G.fcsOn && dist < 440)) continue;
     hx.globalAlpha = optic ? 0.5 : 0.85;
     corners(x, y, s + 6, d.T.col, 1.4, 0.32);
-    if (dist < 1600) T(d.T.short + '  ' + Math.round(dist) + ' m', x, y + s / 2 + 6, d.T.col, 11, 'center', MONO, 400);
+    if (d.T.ground && d.type !== 'tank') { // Namensschild über dem Kopf mit Lebens- und Schildbalken
+      const [nx, ny] = scr(_np.set(d.foot.x, d.foot.y + 2.2, d.foot.z));
+      T(d.T.short, nx, ny - 32, d.T.col, 14, 'center', 'Rajdhani', 700);
+      bar(nx - 24, ny - 14, 48, 3, d.hp / d.hpMax, d.T.col);
+      if (d.T.shield && d.shieldHp > 0) bar(nx - 24, ny - 9, 48, 2, d.shieldHp / d.T.shield, '#c9d3d8');
+      T(Math.round(dist) + ' m', x, y + s / 2 + 6, d.T.col, 11, 'center', MONO, 400);
+    } else if (dist < 1600) T(d.T.short + '  ' + Math.round(dist) + ' m', x, y + s / 2 + 6, d.T.col, 11, 'center', MONO, 400);
     hx.globalAlpha = 1;
   }
   // Warnungen außerhalb des Sichtfelds
@@ -3827,7 +3834,7 @@ function drawOptic(W) {
       const s = clamp(d.T.r * 2 * pxPerM(dist), 10, 120) + 8, conf = 88 + ((d.id * 37) % 11);
       if (d === G.lock) continue;
       hx.setLineDash([4, 3]); corners(x, y, s, 'rgba(125,255,154,.7)', 1, 0.5); hx.setLineDash([]);
-      T((d.T.small ? 'UAV ' : 'UAV-FW ') + conf + '%', x - s / 2, y - s / 2 - 13, 'rgba(125,255,154,.8)', 10, 'left', MONO, 400);
+      T((d.T.ground ? d.T.short + ' ' : d.T.small ? 'UAV ' : 'UAV-FW ') + conf + '%', x - s / 2, y - s / 2 - 13, 'rgba(125,255,154,.8)', 10, 'left', MONO, 400);
     }
     const L = G.lock;
     if (L && L.alive) {
@@ -4045,7 +4052,8 @@ function tick(dt, noRender) {
     if (G.play !== 'drone') { P.regenT -= dt; if (P.regenT <= 0 && P.hp < 100) P.hp = Math.min(100, P.hp + 14 * dt); }
     if (G.play === 'drone') { if (G.uavDown) placeDroneCamera(dt); else updatePlayerDrone(dt); } else { movePlayer(dt); updateWeapon(dt); animateVM(dt); updateFCS(dt); updateRack(); }
     updateUav(dt);
-    if (G.gm === 'land') { updateLift(dt); ffUpdate(dt); updateLandFX(dt); }
+    updateLift(dt);
+    if (G.gm === 'land') { ffUpdate(dt); updateLandFX(dt); }
     updateBullets(dt); updateMissiles(dt); updateWaves(dt); updateDrones(dt); updateFX(dt);
     G.msgs.forEach(m => m.t += dt); G.msgs = G.msgs.filter(m => m.t < m.dur);
     G.feed.forEach(f => f.t += dt); G.feed = G.feed.filter(f => f.t < 5);
