@@ -51,6 +51,7 @@ Erklärungen zu Namen aus dem Quelltext und Fachbegriffen der [SPEC](SPEC.md).
 | MSAA | Kantenglättung des Bildes |
 | NaN | „Not a Number“ (ungültiger Rechenwert), erzeugt Bildfehler |
 | Pointer Lock | Mausfang: der Mauszeiger verschwindet, die Maus steuert die Blickrichtung |
+| Rauchtest | schnelle automatische Prüfung: Spiel per `file://` öffnen, jeden Einsatz kurz starten, keine Fehlermeldung |
 | SMASH | Smart Shooter, Feuerleitsystem mit KI-Zielerkennung und Haltepunkt |
 | Vorhalt | Abstand, um den man vor ein bewegtes Ziel zielt |
 | v0 | Mündungsgeschwindigkeit des Geschosses |
