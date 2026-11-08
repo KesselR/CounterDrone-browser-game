@@ -72,7 +72,7 @@
     <div><b>MAUS</b>Zielen</div><div><b>LINKS</b>Feuer (halten)</div><div><b>RECHTS</b>Visier / Optik</div>
     <div><b>W A S D</b>Bewegen · SHIFT Laufen</div><div><b>R</b>Nachladen</div><div><b>E</b>Waffentisch / Aufzug / Munition</div><div><b>X</b>Lafette verlassen / Drohne zurückrufen</div>
     <div><b>1 / 2 / 3 / 4</b>HK416 / AR-15 / MG6 / Javelin</div><div><b>B</b>Feuerart · Javelin: Zoom 4×/9×</div><div><b>F</b>Feuerleitsystem an/aus</div>
-    <div><b>Q</b>Smart-Shooter-Ziel wechseln</div><div><b>ESC</b>Pause</div><div><b>M</b>Ton an/aus</div>
+    <div><b>Q</b>Smart-Shooter-Ziel wechseln</div><div><b>LEERTASTE</b>Feuer (halten, wie links)</div><div><b>ESC</b>Pause</div><div><b>M</b>Ton an/aus</div>
   </div>
 </div>
 
@@ -2382,6 +2382,8 @@ const RT = { cd: 0, semiArmed: true, auto: { hk416: true, ar15: false, mg6: true
 const AMMO = {};
 const VM = { ads: 0, bobT: 0, sx: 0, sy: 0, mdx: 0, mdy: 0, kick: 0, kickR: 0, flashT: 0, spr: 0, models: {}, cur: null };
 const keys = {}; let mouseL = false, mouseR = false;
+// Feuertaste gehalten: linke Maustaste oder Leertaste (am Boden; in der Drohne ist Leertaste das Steigen)
+const fireHeld = () => mouseL || (!!keys.Space && G.play !== 'drone');
 const bullets = [];
 
 try { const s = JSON.parse(localStorage.getItem('dab_prefs') || '{}'); if (SCEN[s.scen]) G.scen = s.scen; if (FCS[s.mode]) G.mode = s.mode; if (WEAP[s.weapon]) G.weapon = s.weapon; if (s.play === 'drone' || s.play === 'ground') G.play = s.play; if (s.gm === 'air' || s.gm === 'land') G.gm = s.gm; } catch (e) { }
@@ -2741,7 +2743,7 @@ function updateWeapon(dt) {
   if (RT.refillT >= 0) { RT.refillT += dt; if (RT.refillT > 1.2) { for (const id in WEAP) AMMO[id].reserve = WEAP[id].reserve; RT.refillT = -1; msg('MUNITION AUFGEFÜLLT', '#a8ff6a'); sfxPlay('bolt', 0.6); } }
   const busy = RT.reloadT >= 0 || RT.switchT >= 0 || RT.refillT >= 0 || !!G.lift;
   const sprint = keys.ShiftLeft && keys.KeyW && !P.onMount;
-  const trigger = mouseL && !busy && !sprint;
+  const trigger = fireHeld() && !busy && !sprint;
   if (W.missile) { // Javelin: nur mit Zielgerät und Zielaufschaltung, ein Flugkörper pro Startrohr
     if (RT.jDelay > 0) { RT.jDelay -= dt; if (RT.jDelay <= 0) { RT.jDelay = 0; startReload(); } }
     if (!trigger) RT.semiArmed = true;
@@ -2756,7 +2758,7 @@ function updateWeapon(dt) {
     muzzleLight.intensity *= Math.exp(-dt * 40); gunMuzzleLight.intensity *= Math.exp(-dt * 40);
     return;
   }
-  if (W.id === 'mg6') { RT.spin = clamp(RT.spin + (mouseL && !busy ? dt / W.spin : -dt / 1.4), 0, 1); M.barrels.rotation.z += RT.spin * dt * 52; }
+  if (W.id === 'mg6') { RT.spin = clamp(RT.spin + (fireHeld() && !busy ? dt / W.spin : -dt / 1.4), 0, 1); M.barrels.rotation.z += RT.spin * dt * 52; }
   const auto = W.auto && RT.auto[W.id];
   RT.cd -= dt; let fired = false;
   if (!trigger) { RT.semiArmed = true; if (RT.cd < 0) RT.cd = 0; }
@@ -3926,12 +3928,12 @@ function drawHUD() {
 function drawCrosshair(W) {
   const cx = HW / 2, cy = HH / 2, moving = Math.hypot(P.vel.x, P.vel.z) / 3.3;
   const spr = W.spreadHip * (1 + moving * 1.2 + RT.bloom) * DEG, gap = 4 + spr * (HH / 2) / Math.tan(camera.fov * DEG / 2);
-  const col = G.mode === 'arbel' && G.fcsOn ? (G.arbelBlockT > 0 && mouseL ? AMB : G.arbelOK ? ACC : '#ffffff') : '#ffffff';
+  const col = G.mode === 'arbel' && G.fcsOn ? (G.arbelBlockT > 0 && fireHeld() ? AMB : G.arbelOK ? ACC : '#ffffff') : '#ffffff';
   hx.strokeStyle = 'rgba(0,0,0,.5)'; hx.lineWidth = 3.5; const L = 9;
   const lines = () => { hx.beginPath(); hx.moveTo(cx - gap - L, cy); hx.lineTo(cx - gap, cy); hx.moveTo(cx + gap, cy); hx.lineTo(cx + gap + L, cy); hx.moveTo(cx, cy + gap); hx.lineTo(cx, cy + gap + L); hx.moveTo(cx, cy - gap); hx.lineTo(cx, cy - gap - L); hx.stroke(); };
   lines(); hx.strokeStyle = col; hx.lineWidth = 1.6; lines();
   hx.fillStyle = col; hx.fillRect(cx - 1, cy - 1, 2, 2);
-  if (G.mode === 'arbel' && G.fcsOn && mouseL) T(G.arbelBlockT > 0 ? 'ARBEL: SPERRE' : 'ARBEL: FREIGABE', cx, cy + gap + 16, G.arbelBlockT > 0 ? AMB : ACC, 12, 'center', MONO, 400);
+  if (G.mode === 'arbel' && G.fcsOn && fireHeld()) T(G.arbelBlockT > 0 ? 'ARBEL: SPERRE' : 'ARBEL: FREIGABE', cx, cy + gap + 16, G.arbelBlockT > 0 ? AMB : ACC, 12, 'center', MONO, 400);
   if (G.mode === 'smash' && G.fcsOn) T('SMASH: VISIER (RECHTE MAUSTASTE)', cx, cy + gap + 16, 'rgba(168,255,106,.6)', 11, 'center', MONO, 400);
 }
 function drawOptic(W) {
@@ -3946,7 +3948,7 @@ function drawOptic(W) {
   hx.lineWidth = 6; hx.strokeStyle = '#2a2e33'; hx.beginPath(); win(hx); hx.stroke();
   hx.lineWidth = 1.5; hx.strokeStyle = 'rgba(160,170,180,.35)'; hx.beginPath(); win(hx); hx.stroke();
   T(smash ? 'SMART SHOOTER · SMASH' : 'IWI ARBEL · FCS', ox, oy + (smash ? R * 0.86 : R) + 14, 'rgba(160,170,180,.55)', 11, 'center', MONO, 400);
-  hx.fillStyle = !G.fcsOn ? AMB : smash ? (G.solution ? '#3cff70' : '#1e7a3a') : (G.arbelBlockT > 0 && mouseL ? AMB : G.arbelOK ? '#3cff70' : '#1e7a3a'); hx.beginPath(); hx.arc(ox + (smash ? R * 1.12 : R) + 16, oy - R * 0.5, 3, 0, 7); hx.fill();
+  hx.fillStyle = !G.fcsOn ? AMB : smash ? (G.solution ? '#3cff70' : '#1e7a3a') : (G.arbelBlockT > 0 && fireHeld() ? AMB : G.arbelOK ? '#3cff70' : '#1e7a3a'); hx.beginPath(); hx.arc(ox + (smash ? R * 1.12 : R) + 16, oy - R * 0.5, 3, 0, 7); hx.fill();
   hx.globalAlpha = 1;
   hx.save(); hx.beginPath(); win(hx); hx.clip();
   hx.fillStyle = smash ? 'rgba(30,70,50,.07)' : 'rgba(70,30,30,.05)'; hx.fillRect(0, 0, HW, HH);
@@ -3991,12 +3993,12 @@ function drawOptic(W) {
     } else T('SUCHE … ZIEL IN DIE MITTE NEHMEN', ox, bot, 'rgba(125,255,154,.8)', 12, 'center', MONO, 400);
   } else {
     // Arbel-Absehen: Leuchtpunkt + Statusring
-    const ok = G.arbelOK, blk = G.arbelBlockT > 0 && mouseL;
+    const ok = G.arbelOK, blk = G.arbelBlockT > 0 && fireHeld();
     hx.strokeStyle = ok ? 'rgba(120,255,140,.9)' : 'rgba(255,90,72,.6)'; hx.lineWidth = 1.5; hx.beginPath(); hx.arc(cx, cy, 16, 0, 7); hx.stroke();
     hx.fillStyle = col; hx.beginPath(); hx.arc(cx, cy, 2.4, 0, 7); hx.fill();
     hx.strokeStyle = col; hx.lineWidth = 1.4; hx.beginPath(); for (const [sx, sy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { hx.moveTo(cx + sx * 24, cy + sy * 24); hx.lineTo(cx + sx * 34, cy + sy * 34); } hx.stroke();
     T('ARBEL · FEUERLEITRECHNER', ox, top, col, 12, 'center', MONO, 400);
-    const st = mouseL ? (blk ? ['SPERRE – KEINE TREFFERLÖSUNG', AMB] : ['FREIGABE', ACC]) : ok ? ['TREFFERLÖSUNG ●', ACC] : ['BEREIT', '#e6ecef'];
+    const st = fireHeld() ? (blk ? ['SPERRE – KEINE TREFFERLÖSUNG', AMB] : ['FREIGABE', ACC]) : ok ? ['TREFFERLÖSUNG ●', ACC] : ['BEREIT', '#e6ecef'];
     T(st[0], ox, bot, st[1], 14, 'center', MONO, 400);
     T('GESPERRT ' + G.withheld + ' · ABGEGEBEN ' + G.shots, ox, bot - 18, 'rgba(255,255,255,.55)', 11, 'center', MONO, 400);
   }
