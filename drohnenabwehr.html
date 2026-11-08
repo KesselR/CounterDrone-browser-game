@@ -4215,7 +4215,15 @@ resizeHud(); buildMenu();
 requestAnimationFrame(frame);
 // Test- und Diagnosezugriff (Konsole): DAB.run(Sekunden) simuliert Bilder auch bei verdecktem Tab
 window.DAB = { THREE, scene, camera, world, G, P, VM, RT, AMMO, drones, missiles, J, requestWeapon, DR, UAV, FF, spawnEnemy, segBlock, walkBlocked, startLift, eShots, shells, spawnDrone, killDrone, explode, fxAdd, fxSmoke, bloomPass, renderer, MAT, tick,
-  run(sec, dt = 1 / 60) { for (let t = 0; t < sec; t += dt) tick(dt, true); tick(dt); } };
+  run(sec, dt = 1 / 60) { for (let t = 0; t < sec; t += dt) tick(dt, true); tick(dt); },
+  // startet einen Einsatz ohne Klicks: await DAB.start({ scen: 'paris', gm: 'air', weapon: 'hk416', mode: 'smash' })
+  async start(o = {}) {
+    for (const k of ['scen', 'gm', 'weapon', 'mode']) if (o[k]) G[k] = o[k];
+    startMission();
+    for (let i = 0; i < 200 && G.state !== 'brief'; i++) await new Promise(r => setTimeout(r, 50));
+    if (G.state !== 'brief') throw new Error('Aufbau fehlgeschlagen: ' + $('err').textContent);
+    beginPlay(); return G.state;
+  } };
 </script>
 </body>
 </html>
