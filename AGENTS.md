@@ -10,6 +10,10 @@
 
 Tickets liegen als GitHub-Issues in KesselR/CounterDrone-browser-game (öffentlich), bearbeitet mit der `gh`-CLI. See `docs/agents/issue-tracker.md`.
 
+### Triage labels
+
+Fünf Triage-Rollen mit Standardnamen: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`. See `docs/agents/triage-labels.md`.
+
 ### Domain docs
 
 Single-context: `GLOSSARY.md` und `docs/adr/` im Hauptordner. See `docs/agents/domain.md`.
