@@ -647,6 +647,7 @@ Alle Klänge werden zur Laufzeit synthetisiert (Web Audio, keine Dateien).
 |---|---|
 | Maus | Zielen |
 | Linke Maustaste | Feuer (halten) |
+| Leertaste | Feuer (halten), wie linke Maustaste; für Touchpads, damit Zielen per Zwei-Finger-Klick gleichzeitig möglich ist |
 | Rechte Maustaste | Visier / Optik / Zielgerät |
 | W A S D, Shift | Bewegen, Laufen |
 | C oder Strg | Ducken |
