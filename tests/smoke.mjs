@@ -33,10 +33,21 @@ const state = () => page.evaluate(() => DAB.G.state);
 const time = () => page.evaluate(() => DAB.G.time);
 const run = seconds => page.evaluate(s => DAB.run(s), seconds);
 const errEl = () => page.textContent('#err');
+const press = async code => { await page.keyboard.press(code); await run(0.03); };
+const setState = async s => { await page.evaluate(s => { DAB.G.state = s; }, s); await run(0.1); };
+
+// Hilfe-Overlay (Issue #5): Sichtbarkeit und Tastenliste über das DOM
+const helpVisible = () => page.evaluate(() => {
+  const el = document.getElementById('help');
+  return !!el && !el.classList.contains('hidden');
+});
+const keyTexts = selector => page.evaluate(sel => [...document.querySelectorAll(sel + ' > div')]
+  .map(d => d.textContent.replace(' (im Einsatz)', '')), selector);
 
 // Jeder Einsatz in frisch geladener Seite, weil DAB.start nicht von Boden- auf Drohnenmodus umschaltet
-const mission = async (play, steps) => {
+const mission = async (play, { menu, steps } = {}) => {
   await load();
+  await menu?.();
   await start(play);
   const t0 = await time();
   await run(1);
@@ -47,15 +58,57 @@ const mission = async (play, steps) => {
 };
 
 try {
-  await mission('ground', async () => {
-    await page.keyboard.press('KeyP');
-    await run(0.03);
-    check(await state() === 'pause', 'ground: P pausiert');
-    const tPause = await time();
-    await run(1);
-    check(await time() === tPause, 'ground: Spielzeit steht in der Pause');
+  await mission('ground', {
+    menu: async () => {
+      await press('KeyH');
+      check(!await helpVisible(), 'Hilfe: H im Startmenü zeigt kein Overlay');
+    },
+    steps: async () => {
+      check(!await helpVisible(), 'Hilfe: Overlay ist beim Einsatzstart ausgeblendet');
+      await press('KeyH');
+      check(await helpVisible(), 'Hilfe: H blendet das Overlay ein');
+      const t = await time();
+      await run(1);
+      check(await state() === 'play' && await time() > t, 'Hilfe: Spiel läuft beim Einblenden weiter');
+      const menuKeys = await keyTexts('#menuKeys');
+      const helpKeys = await keyTexts('#helpKeys');
+      check(menuKeys.length > 5 && JSON.stringify(menuKeys) === JSON.stringify(helpKeys), 'Hilfe: Startmenü und Overlay zeigen dieselbe Tastenliste');
+      await press('KeyH');
+      check(!await helpVisible(), 'Hilfe: erneutes H blendet das Overlay aus');
+
+      await press('KeyP');
+      check(await state() === 'pause', 'ground: P pausiert');
+      const tPause = await time();
+      await run(1);
+      check(await time() === tPause, 'ground: Spielzeit steht in der Pause');
+
+      await press('KeyH');
+      check(await helpVisible(), 'Hilfe: H blendet das Overlay in der Pause ein');
+      await press('KeyH');
+      check(!await helpVisible() && await state() === 'pause', 'Hilfe: H schließt das Overlay in der Pause');
+      await press('KeyH');
+      await page.click('#btnResume');
+      await run(0.03);
+      check(await state() === 'play' && await helpVisible(), 'Hilfe: Overlay bleibt nach dem Fortsetzen sichtbar');
+
+      await setState('over');
+      check(!await helpVisible(), 'Hilfe: beim Game-Over erscheint kein Overlay');
+      await press('KeyH');
+      check(!await helpVisible(), 'Hilfe: H beim Game-Over zeigt kein Overlay');
+      await setState('brief');
+      await press('KeyH');
+      check(!await helpVisible(), 'Hilfe: H im Briefing zeigt kein Overlay');
+    },
   });
-  await mission('drone');
+
+  await mission('drone', {
+    steps: async () => {
+      await press('KeyH');
+      check(await helpVisible(), 'Hilfe: H blendet das Overlay im Pilotenmodus ein');
+      const keys = await keyTexts('#helpKeys');
+      check(keys.some(k => /Boost/i.test(k)) && keys.some(k => /FPV/i.test(k)), 'Hilfe: Overlay zeigt die Drohnen-Steuerung');
+    },
+  });
   check(errors.length === 0, 'keine Konsolenfehler' + (errors.length ? ': ' + errors.join(' | ') : ''));
 } catch (e) {
   check(false, 'Test abgebrochen: ' + e.message.split('\n')[0]);
