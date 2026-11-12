@@ -34,6 +34,7 @@ Erklärungen zu Namen aus dem Quelltext und Fachbegriffen der [SPEC](SPEC.md).
 | `solveIntercept` | berechnet den Haltepunkt mit Vorhalt und Geschossfall (Smart Shooter, Drohnenturm) |
 | `segBlock` | prüft, ob eine Strecke eine Hauswand schneidet (Geschosse, Sichtlinie) |
 | `playerPoint` | Punkt, auf den Gegner zielen: Spieler oder fliegende Drohne |
+| `KEYLIST` | Tastenliste (Soldat und Abfangdrohne): gemeinsame Quelle für Startmenü und Hilfe-Overlay |
 | `DAB` | Diagnosezugang in der Browser-Konsole |
 
 ## Fachbegriffe
