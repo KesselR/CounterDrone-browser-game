@@ -138,6 +138,30 @@ try {
     },
   });
 
+  // Abfangdrohne vom Waffentisch: Leertaste gehalten, Drohne per X zurückrufen, kein Dauerfeuer am Boden
+  await mission('ground', {
+    steps: async () => {
+      await page.evaluate(() => DAB.startUav());
+      await run(0.5);
+      check(await page.evaluate(() => DAB.G.uav === true), 'Abfangdrohne: startet vom Waffentisch');
+      await page.keyboard.down('Space');
+      await run(0.5);
+      await press('KeyX');
+      await run(0.1);
+      const shotsAfterRecall = await page.evaluate(() => DAB.G.shots);
+      await run(1);
+      check(await page.evaluate(() => DAB.G.play) === 'ground', 'Abfangdrohne: X ruft die Drohne zurück');
+      check(await page.evaluate(s => DAB.G.shots === s, shotsAfterRecall), 'Leertaste: gehaltene Leertaste schießt nach dem Rückruf nicht am Boden');
+      await page.keyboard.up('Space');
+      await run(0.1);
+      const shotsBeforeRepress = await page.evaluate(() => DAB.G.shots);
+      await page.keyboard.down('Space');
+      await run(1);
+      await page.keyboard.up('Space');
+      check(await page.evaluate(s => DAB.G.shots > s, shotsBeforeRepress), 'Leertaste: nach erneutem Drücken feuert sie wieder am Boden');
+    },
+  });
+
   await mission('drone', {
     steps: async () => {
       // In der Drohne bleibt die Leertaste das Steigen

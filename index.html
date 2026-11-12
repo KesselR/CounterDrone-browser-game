@@ -2395,7 +2395,9 @@ const AMMO = {};
 const VM = { ads: 0, bobT: 0, sx: 0, sy: 0, mdx: 0, mdy: 0, kick: 0, kickR: 0, flashT: 0, spr: 0, models: {}, cur: null };
 const keys = {}; let mouseL = false, mouseR = false;
 // Feuertaste gehalten: linke Maustaste oder Leertaste (am Boden; in der Drohne ist Leertaste das Steigen)
-const fireHeld = () => mouseL || (!!keys.Space && G.play !== 'drone');
+// spaceLock: Beim Wechsel von der Drohne zum Boden feuert eine noch gehaltene Leertaste erst nach dem Loslassen wieder
+let spaceLock = false;
+const fireHeld = () => mouseL || (!!keys.Space && !spaceLock && G.play !== 'drone');
 const bullets = [];
 
 try { const s = JSON.parse(localStorage.getItem('dab_prefs') || '{}'); if (SCEN[s.scen]) G.scen = s.scen; if (FCS[s.mode]) G.mode = s.mode; if (WEAP[s.weapon]) G.weapon = s.weapon; if (s.play === 'drone' || s.play === 'ground') G.play = s.play; if (s.gm === 'air' || s.gm === 'land') G.gm = s.gm; } catch (e) { }
@@ -3197,7 +3199,7 @@ function endUav() {
   const spent = DR.ammo < 1 || G.uavDown;
   G.uavAmmo = spent ? 0 : Math.floor(DR.ammo);
   if (spent) G.uavCool = UAV.cool;
-  G.uav = false; G.uavDown = false; G.uavEnd = 0; G.play = 'ground';
+  G.uav = false; G.uavDown = false; G.uavEnd = 0; G.play = 'ground'; spaceLock = !!keys.Space;
   motorOff(); if (DR.mesh) { world.group.remove(DR.mesh); DR.mesh = null; }
   P.hp = G.uavHp; mouseL = mouseR = false; DR.zoom = 0;
   setWeapon(G.weapon); placeCamera();
@@ -3661,7 +3663,7 @@ function lockPointer() { try { const p = glCanvas.requestPointerLock(); if (p &&
 function pauseGame() { if (G.state !== 'play') return; G.state = 'pause'; mouseL = mouseR = false; stopMG(); motorOff(); javTone(0); show('pause', true); }
 function resumeGame() { show('pause', false); G.state = 'play'; lockPointer(); }
 function toMenu() {
-  if (G.uav) { G.uav = false; G.play = 'ground'; }
+  if (G.uav) { G.uav = false; G.play = 'ground'; spaceLock = !!keys.Space; }
   G.state = 'menu'; resetHelp(); stopMG(); motorOff(); javTone(0); for (const d of drones) if (d.sound) d.sound.stop(); drones.length = 0;
   show('pause', false); show('over', false); show('brief', false); buildMenu(); show('menu', true);
   if (document.pointerLockElement) document.exitPointerLock();
@@ -3750,7 +3752,7 @@ addEventListener('keydown', e => {
   if (e.code === 'KeyM') toggleMute();
   if (e.code === 'KeyP') { if (document.pointerLockElement) document.exitPointerLock(); pauseGame(); }
 });
-addEventListener('keyup', e => { keys[e.code] = false; });
+addEventListener('keyup', e => { keys[e.code] = false; if (e.code === 'Space') spaceLock = false; });
 addEventListener('mousedown', e => {
   if (G.state !== 'play') return;
   if (G.hadLock && !document.pointerLockElement) { lockPointer(); return; }
@@ -4262,7 +4264,7 @@ initTextures(); initMaterials(); initMaterials2(); initGunMats(); initDrones(); 
 resizeHud(); buildMenu();
 requestAnimationFrame(frame);
 // Test- und Diagnosezugriff (Konsole): DAB.run(Sekunden) simuliert Bilder auch bei verdecktem Tab
-window.DAB = { THREE, scene, camera, world, G, P, VM, RT, AMMO, drones, missiles, J, requestWeapon, DR, UAV, FF, spawnEnemy, segBlock, walkBlocked, startLift, eShots, shells, spawnDrone, killDrone, explode, fxAdd, fxSmoke, bloomPass, renderer, MAT, tick,
+window.DAB = { THREE, scene, camera, world, G, P, VM, RT, AMMO, drones, missiles, J, requestWeapon, startUav, DR, UAV, FF, spawnEnemy, segBlock, walkBlocked, startLift, eShots, shells, spawnDrone, killDrone, explode, fxAdd, fxSmoke, bloomPass, renderer, MAT, tick,
   run(sec, dt = 1 / 60) { for (let t = 0; t < sec; t += dt) tick(dt, true); tick(dt); },
   // startet einen Einsatz ohne Klicks: await DAB.start({ scen: 'paris', gm: 'air', weapon: 'hk416', mode: 'smash' })
   async start(o = {}) {
