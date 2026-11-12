@@ -15,6 +15,8 @@ Fertig, wenn `read_console_messages` keine Fehler meldet und `#err` leer ist.
 Voraussetzung sind Node und ein installiertes Google Chrome; einmal `npm install`, danach genügt `npm test`.
 Der Test greift nur über `DAB.start`, `DAB.run`, `DAB.G`, die Taste `P`, Konsolenfehler und `#err` zu.
 Er startet Einsätze am Boden und als Drohne, prüft Spielzeit und Pause mit `P` und meldet Konsolenfehler sowie ein nicht leeres `#err`.
+Das Hilfe-Overlay mit `H` prüft er über `#help`, `#helpKeys` und `#menuKeys`: Ein- und Ausblenden, Pause, Pilotenmodus, Tastenliste und die Zustände ohne Overlay.
+Das Game-Over setzt er über `DAB.G.state` von Hand, weil `DAB` keinen Weg bietet, einen Einsatz zu beenden.
 Jeder Einsatz läuft in frisch geladener Seite, weil `DAB.start` nicht von Boden- auf Drohnenmodus umschaltet.
 Rotprobe: `npm test <Pfad>` prüft eine andere `index.html`, etwa eine Kopie mit eingeschleustem `throw`; sie muss mit Exit-Code 1 enden.
 Fertig, wenn `npm test` mit Exit-Code 0 endet.
