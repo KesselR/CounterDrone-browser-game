@@ -660,6 +660,7 @@ Alle Klänge werden zur Laufzeit synthetisiert (Web Audio, keine Dateien).
 | Q | Ziel wechseln (SMASH bzw. Javelin) |
 | Esc / P | Pause |
 | M | Ton an/aus |
+| H | Bedienelemente ein/aus (siehe 20.3) |
 
 ### 20.2 Abfangdrohne
 | Eingabe | Wirkung |
@@ -674,6 +675,16 @@ Alle Klänge werden zur Laufzeit synthetisiert (Web Audio, keine Dateien).
 | V | Verfolger- / FPV-Kamera |
 | X | Drohne zurückrufen |
 | Esc / P, M | Pause, Ton |
+| H | Bedienelemente ein/aus (siehe 20.3) |
+
+### 20.3 Hilfe-Overlay
+- `H` schaltet die Bedienelemente als Overlay ein und aus (Umschalten, nicht Halten).
+- Das Spiel läuft beim Einblenden weiter; `H` pausiert nicht.
+- Das Overlay ist nur im aktiven Spiel und im Pausenmenü sichtbar, nicht im Startmenü, Briefing oder Game-Over.
+  Im Pausenmenü wirkt `H` ebenfalls; das Overlay bleibt dort sichtbar und lässt sich schließen.
+- Im Pilotenmodus zeigt das Overlay die Drohnen-Steuerung (20.2), sonst die Soldaten-Steuerung (20.1).
+- Startmenü und Overlay lesen die Tastenliste aus derselben Quelle (`KEYLIST` in `index.html`).
+- Beim Start eines Einsatzes ist das Overlay ausgeblendet.
 
 ---
 

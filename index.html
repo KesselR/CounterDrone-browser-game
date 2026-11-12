@@ -33,6 +33,10 @@
   #btnStart:hover{filter:brightness(1.1)}
   .keys{margin-top:18px;width:min(1100px,100%);display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:4px 18px;font-family:'Share Tech Mono',monospace;font-size:13px;color:var(--dim)}
   .keys b{color:var(--txt);font-weight:normal;display:inline-block;min-width:92px}
+  #help{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:6;pointer-events:none;width:min(900px,calc(100% - 32px));box-sizing:border-box;background:rgba(5,8,11,.86);border:1px solid var(--line);padding:18px 26px}
+  #help h3{margin:0 0 12px;color:var(--acc);font-family:'Share Tech Mono',monospace;font-weight:normal;letter-spacing:3px;font-size:15px}
+  #help .keys{margin-top:0;grid-template-columns:repeat(auto-fit,minmax(260px,1fr))}
+  #help .hint{margin-top:12px;color:var(--dim);font-family:'Share Tech Mono',monospace;font-size:12px;letter-spacing:2px}
   .panel{background:var(--panel);border:1px solid var(--line);padding:26px 34px;max-width:720px;width:calc(100% - 32px);box-sizing:border-box;backdrop-filter:blur(4px)}
   .panel h2{margin:0;font-size:34px;letter-spacing:4px}
   .panel h4{margin:2px 0 14px;color:var(--acc2);font-family:'Share Tech Mono',monospace;font-weight:normal;letter-spacing:2px}
@@ -68,12 +72,13 @@
   <div class="sect">04 · STARTWAFFE</div>
   <div class="row" id="rowWeap"></div>
   <button id="btnStart">EINSATZ BEGINNEN</button>
-  <div class="keys">
-    <div><b>MAUS</b>Zielen</div><div><b>LINKS</b>Feuer (halten)</div><div><b>RECHTS</b>Visier / Optik</div>
-    <div><b>W A S D</b>Bewegen · SHIFT Laufen</div><div><b>R</b>Nachladen</div><div><b>E</b>Waffentisch / Aufzug / Munition</div><div><b>X</b>Lafette verlassen / Drohne zurückrufen</div>
-    <div><b>1 / 2 / 3 / 4</b>HK416 / AR-15 / MG6 / Javelin</div><div><b>B</b>Feuerart · Javelin: Zoom 4×/9×</div><div><b>F</b>Feuerleitsystem an/aus</div>
-    <div><b>Q</b>Smart-Shooter-Ziel wechseln</div><div><b>ESC</b>Pause</div><div><b>M</b>Ton an/aus</div>
-  </div>
+  <div class="keys" id="menuKeys"></div>
+</div>
+
+<div id="help" class="hidden">
+  <h3 id="helpTitle"></h3>
+  <div class="keys" id="helpKeys"></div>
+  <div class="hint">H Bedienelemente ausblenden</div>
 </div>
 
 <div id="loading" class="screen hidden"><div id="loadTxt">STADT WIRD AUFGEBAUT</div><div class="bar"><i></i></div></div>
@@ -3639,7 +3644,7 @@ function showBrief() {
   show('loading', false); show('brief', true); G.state = 'brief';
 }
 function beginPlay() {
-  initAudio(); show('brief', false); G.state = 'play';
+  initAudio(); show('brief', false); G.state = 'play'; helpOn = false; syncHelp();
   for (const k in keys) keys[k] = false;
   lockPointer();
 }
@@ -3648,14 +3653,14 @@ function pauseGame() { if (G.state !== 'play') return; G.state = 'pause'; mouseL
 function resumeGame() { show('pause', false); G.state = 'play'; lockPointer(); }
 function toMenu() {
   if (G.uav) { G.uav = false; G.play = 'ground'; }
-  G.state = 'menu'; stopMG(); motorOff(); javTone(0); for (const d of drones) if (d.sound) d.sound.stop(); drones.length = 0;
+  G.state = 'menu'; helpOn = false; syncHelp(); stopMG(); motorOff(); javTone(0); for (const d of drones) if (d.sound) d.sound.stop(); drones.length = 0;
   show('pause', false); show('over', false); show('brief', false); buildMenu(); show('menu', true);
   if (document.pointerLockElement) document.exitPointerLock();
 }
 function gameOver(reason) {
   if (G.state !== 'play') return;
   if (G.uav) endUav(); // Spielende während eines Drohneneinsatzes zählt für den Bodenmodus
-  G.state = 'over'; mouseL = mouseR = false; stopMG(); motorOff(); javTone(0);
+  G.state = 'over'; syncHelp(); mouseL = mouseR = false; stopMG(); motorOff(); javTone(0);
   const hi = hiscore(G.scen), newHi = G.score > hi; if (newHi) saveHi(G.scen, G.score);
   $('oTitle').textContent = reason; $('oSub').textContent = (G.gm === 'land' ? 'BODENKAMPF · ' : '') + world.S.name + ' · ' + (G.play === 'drone' ? 'ABFANGDROHNE' : WEAP[G.weapon].name + ' · ' + FCS[G.mode].name) + (newHi ? ' · NEUER REKORD!' : '');
   const q = G.shots ? Math.round(G.hits / G.shots * 100) : 0;
@@ -3666,9 +3671,36 @@ function gameOver(reason) {
   setTimeout(() => { if (document.pointerLockElement) document.exitPointerLock(); show('over', true); }, 1400);
 }
 
+// ---------- Tastenliste (gemeinsame Quelle für Startmenü und Hilfe-Overlay, SPEC 20) ----------
+const KEYLIST = {
+  ground: { title: 'BEDIENUNG · SOLDAT', keys: [
+    ['MAUS', 'Zielen'], ['LINKS', 'Feuer (halten)'], ['RECHTS', 'Visier / Optik'],
+    ['W A S D', 'Bewegen · SHIFT Laufen'], ['C / STRG', 'Ducken'], ['R', 'Nachladen'],
+    ['E', 'Waffentisch / Aufzug / Munition'], ['X', 'Lafette verlassen / Drohne zurückrufen'],
+    ['1 / 2 / 3 / 4', 'HK416 / AR-15 / MG6 / Javelin'], ['B', 'Feuerart · Javelin: Zoom 4×/9×'], ['F', 'Feuerleitsystem an/aus'],
+    ['V', 'Feuerleitsystem wechseln'], ['Q', 'Smart-Shooter-Ziel wechseln'], ['ESC / P', 'Pause'], ['M', 'Ton an/aus'], ['H', 'Bedienelemente ein/aus'] ] },
+  drone: { title: 'BEDIENUNG · ABFANGDROHNE', keys: [
+    ['MAUS', 'Flugrichtung'], ['LINKS', 'Manuelles Feuer'], ['RECHTS', 'Zoom'],
+    ['W / S', 'Vor / zurück'], ['A / D', 'Seitwärts'], ['LEERTASTE', 'Steigen'],
+    ['C / STRG', 'Sinken'], ['SHIFT + W', 'Boost'], ['F', 'Auto-Feuer an/aus'],
+    ['V', 'Verfolger- / FPV-Kamera'], ['X', 'Drohne zurückrufen'], ['ESC / P', 'Pause'], ['M', 'Ton an/aus'], ['H', 'Bedienelemente ein/aus'] ] },
+};
+function renderKeys(el, list) { el.innerHTML = list.keys.map(k => `<div><b>${k[0]}</b>${k[1]}</div>`).join(''); }
+let helpOn = false, helpShown = null;
+// Overlay nur im aktiven Spiel und in der Pause; zeigt die Liste des aktuellen Steuerungsmodus
+function syncHelp() {
+  const vis = helpOn && (G.state === 'play' || G.state === 'pause');
+  const mode = G.play === 'drone' ? 'drone' : 'ground';
+  show('help', vis);
+  if (vis && helpShown !== mode) { helpShown = mode; $('helpTitle').textContent = KEYLIST[mode].title; renderKeys($('helpKeys'), KEYLIST[mode]); }
+}
+function toggleHelp() { if (G.state !== 'play' && G.state !== 'pause') return; helpOn = !helpOn; syncHelp(); }
+renderKeys($('menuKeys'), KEYLIST.ground);
+
 // ---------- Eingabe ----------
 addEventListener('keydown', e => {
   keys[e.code] = true;
+  if (e.code === 'KeyH' && !e.repeat) { toggleHelp(); return; }
   if (G.state !== 'play') { if (e.code === 'Enter' && G.state === 'brief') beginPlay(); return; }
   if (e.repeat) return;
   if (G.play === 'drone') {
@@ -4178,6 +4210,7 @@ function frame(now) {
   tick(dt);
 }
 function tick(dt, noRender) {
+  syncHelp();
   if (!world.group) { drawHUD(); return; }
   if (G.state === 'play') {
     G.time += dt;
