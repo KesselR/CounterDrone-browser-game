@@ -9,7 +9,8 @@ const browser = await chromium.launch({
   channel: 'chrome',
   args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader'],
 });
-const page = await browser.newPage();
+const DEFAULT_VIEWPORT = { width: 640, height: 360 }; // klein, weil Chrome in Software rendert
+const page = await browser.newPage({ viewport: DEFAULT_VIEWPORT });
 page.setDefaultTimeout(20000);
 const errors = [];
 page.on('pageerror', e => errors.push(String(e)));
@@ -24,6 +25,8 @@ const check = (cond, msg) => {
 const load = async () => {
   await page.goto(pathToFileURL(file).href);
   await page.waitForFunction(() => window.DAB, null, { timeout: 60000 });
+  // Die Spielschleife steht still; die Zeit läuft nur über DAB.run. Sonst rendert sie dauernd in Software und bremst alles.
+  await page.evaluate(() => { window.requestAnimationFrame = () => 0; });
 };
 const start = play => page.evaluate(async play => {
   DAB.G.play = play;
@@ -33,7 +36,7 @@ const state = () => page.evaluate(() => DAB.G.state);
 const time = () => page.evaluate(() => DAB.G.time);
 const run = seconds => page.evaluate(s => DAB.run(s), seconds);
 const errEl = () => page.textContent('#err');
-const press = async code => { await page.keyboard.press(code); await run(0.03); };
+const press = code => page.keyboard.press(code);
 const setState = async s => { await page.evaluate(s => { DAB.G.state = s; }, s); await run(0.1); };
 
 // Hilfe-Overlay (Issue #5): Sichtbarkeit und Tastenliste über das DOM
@@ -56,7 +59,7 @@ const mission = async (play, { menu, steps } = {}) => {
   await menu?.();
   await start(play);
   const t0 = await time();
-  await run(1);
+  await run(0.2);
   check(await state() === 'play', `${play}: Einsatz läuft nach dem Start`);
   check(await time() > t0, `${play}: Spielzeit schreitet voran`);
   await steps?.();
@@ -70,14 +73,34 @@ try {
       check(!await helpVisible(), 'Hilfe: H im Startmenü zeigt kein Overlay');
     },
     steps: async () => {
+      // Abfangdrohne vom Waffentisch: Leertaste gehalten, Drohne per X zurückrufen, kein Dauerfeuer am Boden
+      await page.evaluate(() => DAB.startUav());
+      await run(0.5);
+      check(await page.evaluate(() => DAB.G.uav === true), 'Abfangdrohne: startet vom Waffentisch');
+      await page.keyboard.down('Space');
+      await run(0.5);
+      await press('KeyX');
+      await run(0.1);
+      const shotsAfterRecall = await page.evaluate(() => DAB.G.shots);
+      await run(0.4);
+      check(await page.evaluate(() => DAB.G.play) === 'ground', 'Abfangdrohne: X ruft die Drohne zurück');
+      check(await page.evaluate(s => DAB.G.shots === s, shotsAfterRecall), 'Leertaste: gehaltene Leertaste schießt nach dem Rückruf nicht am Boden');
+      await page.keyboard.up('Space');
+      await run(0.1);
+      const shotsBeforeRepress = await page.evaluate(() => DAB.G.shots);
+      await page.keyboard.down('Space');
+      await run(0.4);
+      await page.keyboard.up('Space');
+      check(await page.evaluate(s => DAB.G.shots > s, shotsBeforeRepress), 'Leertaste: nach erneutem Drücken feuert sie wieder am Boden');
+
       // Leertaste als zweite Feuertaste (Issue #3)
       const shots0 = await page.evaluate(() => DAB.G.shots);
       await page.keyboard.down('Space');
-      await run(1);
+      await run(0.4);
       await page.keyboard.up('Space');
       check(await page.evaluate(s => DAB.G.shots > s, shots0), 'Leertaste: feuert am Boden');
       const shots1 = await page.evaluate(() => DAB.G.shots);
-      await run(1);
+      await run(0.3);
       check(await page.evaluate(s => DAB.G.shots === s, shots1), 'Leertaste: nach dem Loslassen kein Feuer mehr');
       check((await keyTexts('#menuKeys')).some(k => /LEERTASTE/.test(k)), 'Leertaste: Startmenü nennt die Taste');
 
@@ -85,7 +108,7 @@ try {
       await press('KeyH');
       check(await helpVisible(), 'Hilfe: H blendet das Overlay ein');
       const t = await time();
-      await run(1);
+      await run(0.2);
       check(await state() === 'play' && await time() > t, 'Hilfe: Spiel läuft beim Einblenden weiter');
       const menuKeys = await keyTexts('#menuKeys');
       const helpKeys = await keyTexts('#helpKeys');
@@ -96,7 +119,7 @@ try {
       await press('KeyP');
       check(await state() === 'pause', 'ground: P pausiert');
       const tPause = await time();
-      await run(1);
+      await run(0.2);
       check(await time() === tPause, 'ground: Spielzeit steht in der Pause');
 
       await press('KeyH');
@@ -105,13 +128,11 @@ try {
       check(!await helpVisible() && await state() === 'pause', 'Hilfe: H schließt das Overlay in der Pause');
       await press('KeyH');
       await page.click('#btnResume');
-      await run(0.03);
       check(await state() === 'play' && await helpVisible(), 'Hilfe: Overlay bleibt nach dem Fortsetzen sichtbar');
 
       // Kleine Fenster: Overlay bleibt im Viewport, zugänglich und lässt die Pausenbuttons frei
       for (const [w, h] of [[600, 320], [600, 500]]) {
         await page.setViewportSize({ width: w, height: h });
-        await run(0.03);
         const play = await overlayBox();
         check(play.top >= 0 && play.bottom <= h, `Hilfe: Overlay passt bei ${w}×${h} in den Viewport`);
         check(play.fits, `Hilfe: alle Einträge bei ${w}×${h} im Einsatz sichtbar (dort lässt sich nicht scrollen)`);
@@ -124,9 +145,8 @@ try {
         check(buttons.every(b => b.bottom <= paused.top || b.top >= paused.bottom), `Hilfe: Overlay verdeckt bei ${w}×${h} keine Pausenbuttons`);
         check(paused.top >= 0 && paused.bottom <= h && (paused.scrollable || paused.fits), `Hilfe: Overlay in der Pause bei ${w}×${h} im Viewport und erreichbar`);
         await page.click('#btnResume');
-        await run(0.03);
       }
-      await page.setViewportSize({ width: 1280, height: 720 });
+      await page.setViewportSize(DEFAULT_VIEWPORT);
 
       await setState('over');
       check(!await helpVisible(), 'Hilfe: beim Game-Over erscheint kein Overlay');
@@ -138,36 +158,12 @@ try {
     },
   });
 
-  // Abfangdrohne vom Waffentisch: Leertaste gehalten, Drohne per X zurückrufen, kein Dauerfeuer am Boden
-  await mission('ground', {
-    steps: async () => {
-      await page.evaluate(() => DAB.startUav());
-      await run(0.5);
-      check(await page.evaluate(() => DAB.G.uav === true), 'Abfangdrohne: startet vom Waffentisch');
-      await page.keyboard.down('Space');
-      await run(0.5);
-      await press('KeyX');
-      await run(0.1);
-      const shotsAfterRecall = await page.evaluate(() => DAB.G.shots);
-      await run(1);
-      check(await page.evaluate(() => DAB.G.play) === 'ground', 'Abfangdrohne: X ruft die Drohne zurück');
-      check(await page.evaluate(s => DAB.G.shots === s, shotsAfterRecall), 'Leertaste: gehaltene Leertaste schießt nach dem Rückruf nicht am Boden');
-      await page.keyboard.up('Space');
-      await run(0.1);
-      const shotsBeforeRepress = await page.evaluate(() => DAB.G.shots);
-      await page.keyboard.down('Space');
-      await run(1);
-      await page.keyboard.up('Space');
-      check(await page.evaluate(s => DAB.G.shots > s, shotsBeforeRepress), 'Leertaste: nach erneutem Drücken feuert sie wieder am Boden');
-    },
-  });
-
   await mission('drone', {
     steps: async () => {
       // In der Drohne bleibt die Leertaste das Steigen
       const y0 = await page.evaluate(() => DAB.DR.pos.y);
       await page.keyboard.down('Space');
-      await run(1);
+      await run(0.6);
       await page.keyboard.up('Space');
       check(await page.evaluate(y => DAB.DR.pos.y > y + 0.5, y0), 'Leertaste: steigt in der Drohne');
 
