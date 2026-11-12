@@ -70,6 +70,17 @@ try {
       check(!await helpVisible(), 'Hilfe: H im Startmenü zeigt kein Overlay');
     },
     steps: async () => {
+      // Leertaste als zweite Feuertaste (Issue #3)
+      const shots0 = await page.evaluate(() => DAB.G.shots);
+      await page.keyboard.down('Space');
+      await run(1);
+      await page.keyboard.up('Space');
+      check(await page.evaluate(s => DAB.G.shots > s, shots0), 'Leertaste: feuert am Boden');
+      const shots1 = await page.evaluate(() => DAB.G.shots);
+      await run(1);
+      check(await page.evaluate(s => DAB.G.shots === s, shots1), 'Leertaste: nach dem Loslassen kein Feuer mehr');
+      check((await keyTexts('#menuKeys')).some(k => /LEERTASTE/.test(k)), 'Leertaste: Startmenü nennt die Taste');
+
       check(!await helpVisible(), 'Hilfe: Overlay ist beim Einsatzstart ausgeblendet');
       await press('KeyH');
       check(await helpVisible(), 'Hilfe: H blendet das Overlay ein');
@@ -129,6 +140,13 @@ try {
 
   await mission('drone', {
     steps: async () => {
+      // In der Drohne bleibt die Leertaste das Steigen
+      const y0 = await page.evaluate(() => DAB.DR.pos.y);
+      await page.keyboard.down('Space');
+      await run(1);
+      await page.keyboard.up('Space');
+      check(await page.evaluate(y => DAB.DR.pos.y > y + 0.5, y0), 'Leertaste: steigt in der Drohne');
+
       await press('KeyH');
       check(await helpVisible(), 'Hilfe: H blendet das Overlay im Pilotenmodus ein');
       const keys = await keyTexts('#helpKeys');
