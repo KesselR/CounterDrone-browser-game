@@ -41,7 +41,13 @@ const helpVisible = () => page.evaluate(() => {
   const el = document.getElementById('help');
   return !!el && !el.classList.contains('hidden');
 });
-const keyTexts = selector => page.evaluate(sel => [...document.querySelectorAll(sel + ' > div')]
+const overlayBox = () => page.evaluate(() => {
+  const el = document.getElementById('help');
+  const r = el.getBoundingClientRect();
+  const overflowY = getComputedStyle(el).overflowY;
+  return { top: r.top, bottom: r.bottom, fits: el.scrollHeight <= el.clientHeight, scrollable: overflowY === 'auto' || overflowY === 'scroll' };
+});
+const keyTexts =selector => page.evaluate(sel => [...document.querySelectorAll(sel + ' > div')]
   .map(d => d.textContent.replace(' (im Einsatz)', '')), selector);
 
 // Jeder Einsatz in frisch geladener Seite, weil DAB.start nicht von Boden- auf Drohnenmodus umschaltet
@@ -90,6 +96,26 @@ try {
       await page.click('#btnResume');
       await run(0.03);
       check(await state() === 'play' && await helpVisible(), 'Hilfe: Overlay bleibt nach dem Fortsetzen sichtbar');
+
+      // Kleine Fenster: Overlay bleibt im Viewport, zugänglich und lässt die Pausenbuttons frei
+      for (const [w, h] of [[600, 320], [600, 500]]) {
+        await page.setViewportSize({ width: w, height: h });
+        await run(0.03);
+        const play = await overlayBox();
+        check(play.top >= 0 && play.bottom <= h, `Hilfe: Overlay passt bei ${w}×${h} in den Viewport`);
+        check(play.fits, `Hilfe: alle Einträge bei ${w}×${h} im Einsatz sichtbar (dort lässt sich nicht scrollen)`);
+        await press('KeyP');
+        const paused = await overlayBox();
+        const buttons = await page.evaluate(() => ['btnResume', 'btnMenu1']
+          .map(id => document.getElementById(id).getBoundingClientRect())
+          .map(r => ({ top: r.top, bottom: r.bottom })));
+        check(buttons.every(b => b.top >= 0 && b.bottom <= h), `Hilfe: Pausenbuttons liegen bei ${w}×${h} im Viewport`);
+        check(buttons.every(b => b.bottom <= paused.top || b.top >= paused.bottom), `Hilfe: Overlay verdeckt bei ${w}×${h} keine Pausenbuttons`);
+        check(paused.top >= 0 && paused.bottom <= h && (paused.scrollable || paused.fits), `Hilfe: Overlay in der Pause bei ${w}×${h} im Viewport und erreichbar`);
+        await page.click('#btnResume');
+        await run(0.03);
+      }
+      await page.setViewportSize({ width: 1280, height: 720 });
 
       await setState('over');
       check(!await helpVisible(), 'Hilfe: beim Game-Over erscheint kein Overlay');

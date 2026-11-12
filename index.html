@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
 <style>
-  :root{--acc:#a8ff6a;--acc2:#ffb347;--red:#ff4a3d;--txt:#e6ecef;--dim:#8d9aa3;--panel:rgba(10,14,17,.78);--line:rgba(168,255,106,.35)}
+  :root{--acc:#a8ff6a;--acc2:#ffb347;--red:#ff4a3d;--txt:#e6ecef;--dim:#8d9aa3;--panel:rgba(10,14,17,.78);--line:rgba(168,255,106,.35);--pause-h:232px}
   html,body{margin:0;height:100%;overflow:hidden;background:#05070a;color:var(--txt);font-family:Rajdhani,'Segoe UI',system-ui,sans-serif;user-select:none}
   #gl,#hud{position:fixed;inset:0;width:100%;height:100%;display:block}
   #hud{pointer-events:none}
@@ -33,11 +33,18 @@
   #btnStart:hover{filter:brightness(1.1)}
   .keys{margin-top:18px;width:min(1100px,100%);display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:4px 18px;font-family:'Share Tech Mono',monospace;font-size:13px;color:var(--dim)}
   .keys b{color:var(--txt);font-weight:normal;display:inline-block;min-width:92px}
-  #help{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:6;pointer-events:none;width:min(900px,calc(100% - 32px));box-sizing:border-box;background:rgba(5,8,11,.86);border:1px solid var(--line);padding:18px 26px}
+  #help{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:6;pointer-events:none;width:min(900px,calc(100% - 32px));box-sizing:border-box;background:rgba(5,8,11,.86);border:1px solid var(--line);padding:clamp(8px,2vh,18px) clamp(12px,3vw,26px);max-height:calc(100dvh - 32px);overflow-y:auto}
+  /* In der Pause bleibt oben Platz für WEITER / HAUPTMENÜ; der Mauszeiger ist frei, das Overlay lässt sich scrollen */
+  body:has(#pause:not(.hidden)) #help{max-height:calc(100dvh - var(--pause-h));pointer-events:auto}
   /* Mit Hilfe-Overlay rückt das Pausenmenü nach oben, damit WEITER / HAUPTMENÜ frei bleiben */
-  body.helpOn #pause{justify-content:flex-start;padding-top:16px;box-sizing:border-box}
+  body:has(#help:not(.hidden)) #pause{justify-content:flex-start;padding-top:16px;box-sizing:border-box}
   #help h3{margin:0 0 12px;color:var(--acc);font-family:'Share Tech Mono',monospace;font-weight:normal;letter-spacing:3px;font-size:15px}
   #help .keys{margin-top:0;grid-template-columns:repeat(auto-fit,minmax(260px,1fr))}
+  @media (max-width:700px),(max-height:600px){
+    #help h3{margin-bottom:6px}
+    #help .keys{grid-template-columns:repeat(auto-fit,minmax(170px,1fr));font-size:12px;gap:2px 14px}
+    #help .keys b{min-width:76px;margin-right:8px}
+  }
   .panel{background:var(--panel);border:1px solid var(--line);padding:26px 34px;max-width:720px;width:calc(100% - 32px);box-sizing:border-box;backdrop-filter:blur(4px)}
   .panel h2{margin:0;font-size:34px;letter-spacing:4px}
   .panel h4{margin:2px 0 14px;color:var(--acc2);font-family:'Share Tech Mono',monospace;font-weight:normal;letter-spacing:2px}
@@ -3689,15 +3696,15 @@ const KEYLIST = {
 function renderKeys(el, list, withNote = false) {
   el.innerHTML = list.keys.map(([key, text, note]) => `<div><b>${key}</b>${text}${withNote && note ? ' (' + note + ')' : ''}</div>`).join('');
 }
-let helpOn = false, helpShown = null;
+let helpOn = false, helpShown = null; // helpShown: Modus der angezeigten Liste, null = Overlay verborgen
 // Overlay nur im aktiven Spiel und in der Pause; zeigt die Liste des aktuellen Steuerungsmodus
 function inPlayOrPause() { return G.state === 'play' || G.state === 'pause'; }
 function syncHelp() {
-  const visible = helpOn && inPlayOrPause();
-  const mode = G.play === 'drone' ? 'drone' : 'ground';
-  show('help', visible);
-  document.body.classList.toggle('helpOn', visible);
-  if (visible && helpShown !== mode) { helpShown = mode; $('helpTitle').textContent = KEYLIST[mode].title; renderKeys($('helpKeys'), KEYLIST[mode]); }
+  const mode = helpOn && inPlayOrPause() ? (G.play === 'drone' ? 'drone' : 'ground') : null;
+  if (mode === helpShown) return;
+  helpShown = mode;
+  show('help', !!mode);
+  if (mode) { $('helpTitle').textContent = KEYLIST[mode].title; renderKeys($('helpKeys'), KEYLIST[mode]); }
 }
 function resetHelp() { helpOn = false; syncHelp(); }
 function toggleHelp() { if (!inPlayOrPause()) return; helpOn = !helpOn; syncHelp(); }
