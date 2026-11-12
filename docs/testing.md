@@ -8,3 +8,13 @@ Der Browser-Bereich ist oft verdeckt. Dann ruht `requestAnimationFrame`, die Spi
 4. Vor jedem Bildschirmfoto einen eigenen Aufruf `DAB.run(0.03)` absetzen; erst das Foto danach zeigt den aktuellen Stand.
 
 Fertig, wenn `read_console_messages` keine Fehler meldet und `#err` leer ist.
+
+## Rauchtest
+
+`npm test` lädt `index.html` per `file://` in Chrome (Playwright, kein Server).
+Voraussetzung sind Node und ein installiertes Google Chrome; einmal `npm install`, danach genügt `npm test`.
+Der Test greift nur über `DAB.start`, `DAB.run`, `DAB.G`, die Taste `P`, Konsolenfehler und `#err` zu.
+Er startet Einsätze am Boden und als Drohne, prüft Spielzeit und Pause mit `P` und meldet Konsolenfehler sowie ein nicht leeres `#err`.
+Jeder Einsatz läuft in frisch geladener Seite, weil `DAB.start` nicht von Boden- auf Drohnenmodus umschaltet.
+Rotprobe: `npm test <Pfad>` prüft eine andere `index.html`, etwa eine Kopie mit eingeschleustem `throw`; sie muss mit Exit-Code 1 enden.
+Fertig, wenn `npm test` mit Exit-Code 0 endet.
