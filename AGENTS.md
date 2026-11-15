@@ -3,6 +3,7 @@
 - **Anforderungen**: `SPEC.md` lesen, bevor du Spielverhalten änderst; Abschnitt „Überblick“ trennt Vorgaben, Entscheidungen und Technik.
 - **Codenamen**: `GLOSSARY.md` erklärt Kennungen wie `WEAP`, `DT`, `DAB`.
 - **Browsertest**: `docs/testing.md` vor jedem Test im Browser-Bereich und vor Änderungen am Rauchtest (`npm test`) lesen.
+- **Markdown**: nach jeder Änderung an `*.md` `npm run lint:md`; fertig bei 0 Verstößen.
 - **Commits**: Deutsch, Betreff ohne Präfix, Issue-Nummer als erster Stichpunkt im Body (`- #6`), Stil wie `git log`.
 
 ## Agent skills
