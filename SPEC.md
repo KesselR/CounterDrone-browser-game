@@ -11,6 +11,7 @@ Wörter in `Code-Schrift` sind Namen aus dem Quelltext; die wichtigsten erklärt
 Die folgenden drei Abschnitte trennen, woher die Inhalte dieser SPEC stammen. Die ausführlichen Kapitel ab 1 bleiben vorerst unverändert. Ob später gekürzt wird, ist offen.
 
 ### V – Vorgaben aus dem Auftrag
+
 Ausdrücklich verlangt (aus den Prompts der ersten Sitzung):
 
 - **V1** Browserspiel mit moderner Grafik im Stil von *Arma 3* oder *Call of Duty*, als einfache Browser-Version.
@@ -25,6 +26,7 @@ Ausdrücklich verlangt (aus den Prompts der ersten Sitzung):
 Noch einzuordnen (in späteren Sitzungen entstanden, unklar ob Vorgabe oder Vorschlag): Bodenkampf mit Infanterie und Kampfpanzern, FGM-148 Javelin, Waffentisch, Aufzug zur Straße, MG6-Lafetten vor dem Haus, Trittbrett, abwechslungsreiche Häuserzeilen.
 
 ### E – Gestaltungsentscheidungen
+
 Während der Umsetzung getroffen, begründet und änderbar:
 
 - **E1** Die Stellung steht auf einem Hausdach mit Blick auf die Wahrzeichen; die Startblickrichtung zeigt die Silhouette.
@@ -38,6 +40,7 @@ Während der Umsetzung getroffen, begründet und änderbar:
 - **E9** Optiken beim Zielen als 2D-Darstellung statt 3D-Modell, für ein freies Sichtfeld.
 
 ### T – Technische Hinweise
+
 Was der Code nicht selbst erklärt; alles andere (Zahlenwerte, Algorithmen, HUD, Tasten) steht im Code genau genug:
 
 - **T1** Robustheitsregeln aus behobenen Grafikfehlern (Kapitel 23): keine Point-Sprites, `smoothstep` nur mit aufsteigenden Grenzen, NaN-Schutz in leuchtenden Shadern, Himmel unter der Bloom-Schwelle.
@@ -81,9 +84,11 @@ Was der Code nicht selbst erklärt; alles andere (Zahlenwerte, Algorithmen, HUD,
 ## 1. Ziel und Abgrenzung
 
 ### 1.1 Spielidee
+
 Ein Ego-Shooter im Browser mit moderner Grafik nach dem Vorbild von *Arma 3* und *Call of Duty*, aber als einfache Browser-Version. Der Spieler verteidigt eine Stellung auf einem Hausdach in einer europäischen Stadt gegen Drohnenangriffe. In einem zweiten Modus kämpft er gegen Infanterie und Kampfpanzer am Boden.
 
 ### 1.2 Kernanforderungen (Herkunft: Auftrag von Sam)
+
 - **A1** Drei Einsatzorte mit erkennbarer Silhouette: **Paris**, **Leipzig**, **Lübeck**.
 - **A2** Anfliegende Drohnen: **Geran-2/Shahed-136**, **Geran-5** (Strahltriebwerk) und **kleine chinesische Quadcopter**. Ergänzt um FPV-Kamikazedrohnen und Lastdrohnen.
 - **A3** Waffen: **HK416**, **AR-15**, **MG6** (Bundeswehr-Bezeichnung der M134D-Gatling). Ergänzt um die **FGM-148 Javelin**.
@@ -95,6 +100,7 @@ Ein Ego-Shooter im Browser mit moderner Grafik nach dem Vorbild von *Arma 3* und
 - **A7** Ähnlicher Spielaufbau wie das ältere Spiel „Hoth – Echo-Stellung“: feste Stellung, Wellen, Punkte, Kettenbonus, Rekord.
 
 ### 1.3 Abgrenzung
+
 - Kein Mehrspielermodus, kein Server, keine Konten.
 - Nur Desktop mit Maus und Tastatur; Touch-Geräte werden nicht unterstützt.
 - Das Spiel stellt Abwehr dar. Angriffe auf Zivilisten sind nicht spielbar; Einschläge in der Stadt sind ein Misserfolg des Spielers.
@@ -104,6 +110,7 @@ Ein Ego-Shooter im Browser mit moderner Grafik nach dem Vorbild von *Arma 3* und
 ## 2. Technische Grundlagen
 
 ### 2.1 Auslieferung
+
 - **Eine HTML-Datei** mit eingebettetem CSS und einem `<script type="module">`. Kein Build-Schritt, keine lokalen Abhängigkeiten.
 - **Three.js 0.170.0** über eine Import-Map von jsDelivr:
   - `three` → `https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js`
@@ -115,17 +122,20 @@ Ein Ego-Shooter im Browser mit moderner Grafik nach dem Vorbild von *Arma 3* und
 - Ein globaler Fehlerfänger zeigt Laufzeitfehler unten links im Element `#err` an.
 
 ### 2.2 Browser-Anforderungen
+
 WebGL 2, Pointer Lock API, Web Audio API, ES-Module mit Import-Maps, `CanvasRenderingContext2D` (für `createConicGradient` gibt es eine Rückfallebene).
 
 ### 2.3 Koordinaten und Einheiten
+
 - Einheiten: Meter, Sekunden, Kurs in Grad.
 - Kurs 0° = Norden = −Z, 90° = Osten = +X. Hilfsfunktionen: `polar(kurs, distanz) → [x, z]`, `headingOf(x, z) → kurs`.
 - Die eigene Stellung steht im Ursprung. Die Dachgruppe `world.roofG` ist um `−viewHdg` gedreht, sodass ihr lokales −Z in die Hauptblickrichtung des Einsatzorts zeigt.
 - Modelle (Drohnen, Soldaten, Panzer, Flugkörper) blicken lokal nach +Z, damit `lookAt` funktioniert.
 
 ### 2.4 Render-Pipeline
+
 | Baustein | Umsetzung |
-|---|---|
+| --- | --- |
 | Renderer | `WebGLRenderer`, Pixelverhältnis max. 1,25, ACES-Filmic-Tonemapping, sRGB-Ausgabe, PCF-Soft-Schatten |
 | Hauptszene | `scene` mit `camera` (FOV 72°, near 0,25, far 16.000) |
 | Waffenszene | `gunScene` mit eigener `gunCam` (FOV 56°, beim Zielen 28°); verhindert, dass die Waffe in Wände ragt |
@@ -137,6 +147,7 @@ WebGL 2, Pointer Lock API, Web Audio API, ES-Module mit Import-Maps, `CanvasRend
 | Beleuchtung | Gerichtetes Licht (Sonne oder Mond) mit 2048er-Schattenkarte, ±22 m um die Kamera; Halbkugellicht; Waffenszene mit eigenem Licht, das der Blickrichtung folgt |
 
 ### 2.5 Programmaufbau (Abschnitte im Quelltext)
+
 1. Mathe-Helfer, Renderer, Szenen, Composer
 2. Himmels-Shader und Umgebungskarte
 3. Prozedurale Texturen (Fassaden, Dächer, Ziegel, Partikelatlas …)
@@ -159,11 +170,13 @@ WebGL 2, Pointer Lock API, Web Audio API, ES-Module mit Import-Maps, `CanvasRend
 ## 3. Spielablauf und Zustände
 
 ### 3.1 Zustandsmaschine (`G.state`)
-```
+
+```text
 menu ──[EINSATZ BEGINNEN]──▶ loading ──▶ brief ──[Klick/Enter]──▶ play ◀──▶ pause
   ▲                                                                 │
   └──────────────[HAUPTMENÜ]──────────── over ◀──[Spielende]────────┘
 ```
+
 - **menu:** Menü-Overlay, keine 3D-Darstellung.
 - **loading:** „STADT WIRD AUFGEBAUT“; nach 60 ms `buildLevel(G.scen)` und `prepareRun()`. Bei einem Fehler zurück ins Menü mit Fehlertext.
 - **brief:** Einsatzbesprechung über der fertigen Szene; die Kamera schwenkt leicht. Der Text hängt von Modus und Waffe ab.
@@ -172,6 +185,7 @@ menu ──[EINSATZ BEGINNEN]──▶ loading ──▶ brief ──[Klick/Ente
 - **over:** Spielende; nach 1,4 s erscheint die Auswertung. Abstürzende Drohnen und Effekte laufen weiter.
 
 ### 3.2 Anforderungen an den Ablauf
+
 - **F-ABL-1** Jeder Neustart (`prepareRun`) setzt Punkte, Welle, Stadtschutz, Gesundheit, Munition, Gegner, Geschosse, Flugkörper, Drohnen-Bereitschaft und Aufzug vollständig zurück.
 - **F-ABL-2** Die erste Welle beginnt 6 s nach Spielstart (Anzeige „ERSTE WELLE IN … S“).
 - **F-ABL-3** Ohne Pointer Lock (etwa in eingebetteten Browsern) läuft das Spiel trotzdem; die Maus wirkt dann über `movementX/Y`.
@@ -184,7 +198,7 @@ menu ──[EINSATZ BEGINNEN]──▶ loading ──▶ brief ──[Klick/Ente
 Vier Abschnitte mit Karten; die Auswahl wird markiert und gespeichert.
 
 | Abschnitt | Auswahl | Inhalt der Karte |
-|---|---|---|
+| --- | --- | --- |
 | 01 · SPIELMODUS | Drohnenabwehr / Bodenkampf | Beschreibung, Gegner, Bedingung für das Spielende |
 | 02 · EINSATZORT | Paris / Leipzig / Lübeck | gezeichnete Skyline-Silhouette, Uhrzeit, Kurztext, Rekord |
 | 03 · FEUERLEITSYSTEM | Smart Shooter / Arbel | Funktionsweise, Wirkbereich |
@@ -200,6 +214,7 @@ Darunter: Knopf „EINSATZ BEGINNEN“ und eine Tastenübersicht.
 ## 5. Spielmodi
 
 ### 5.1 Drohnenabwehr (`G.gm = 'air'`)
+
 - Gegner: Luftziele (Kapitel 13).
 - Ziel: Wahrzeichen und Wohnblocks schützen (Wert **Stadtschutz**, Start 100 %).
 - Spielende: Stadtschutz 0 % („STADT NICHT GEHALTEN“) oder Gesundheit 0 („GEFALLEN“).
@@ -207,6 +222,7 @@ Darunter: Knopf „EINSATZ BEGINNEN“ und eine Tastenübersicht.
 - Aufzug, Straße und MG6-Lafetten vor dem Haus sind ebenfalls nutzbar.
 
 ### 5.2 Bodenkampf (`G.gm = 'land'`)
+
 - Gegner: Infanterie und alle fünf Wellen ein Kampfpanzer (Kapitel 14).
 - Kein Stadtschutz; Spielende nur bei Gesundheit 0.
 - Bewegungsraum auf der Straße: Kreis mit 100 m Radius um die Stellung (`LAND.radius`); am Rand erscheint eine Warnung.
@@ -215,9 +231,11 @@ Darunter: Knopf „EINSATZ BEGINNEN“ und eine Tastenübersicht.
 - Bonus am Wellenende: 150 × Welle.
 
 ### 5.3 Abfangdrohne
+
 Wird in beiden Modi über den **Waffentisch** auf dem Dach gestartet (Kapitel 12). Der Soldat bleibt dabei auf dem Dach; die Sicht wechselt in die Drohne.
 
 ### 5.4 Eigenständiger Pilotenmodus (Altbestand)
+
 Der Code kennt weiterhin `G.play = 'drone'` ohne Waffentisch: Die Drohne startet dann vom Landeplatz, hat einen Akku (300 s), 800 Schuss und lädt am Landeplatz H nach. Im Menü gibt es dafür **keine Auswahl** mehr; erreichbar ist der Modus nur über einen alten Eintrag `play: 'drone'` in den gespeicherten Einstellungen (siehe 25).
 
 ---
@@ -227,8 +245,9 @@ Der Code kennt weiterhin `G.play = 'drone'` ohne Waffentisch: Die Drohne startet
 Alle Szenarien stehen in `SCEN`. Gemeinsame Felder: Startwert des Zufallsgenerators `seed`, Dachhöhe `roofH`, Hauptblickrichtung `viewHdg`, Bedrohungsrichtung `threat`, Himmel `sky`, Nebel `fog`, Licht, Belichtung, Fensterbeleuchtung, Farbkorrektur, Flüsse, Hügel, Parks, Wahrzeichen, Anzahl Suchscheinwerfer und Flak-Stellungen, Bezirksregel `district()`.
 
 ### 6.1 Übersicht
+
 | | Paris | Leipzig | Lübeck |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | Uhrzeit | Abenddämmerung 20:47 | Blaue Stunde 17:58 | Nacht 23:14 |
 | Dachhöhe | 25 m | 44 m | 27 m |
 | Blickrichtung | 250° (WSW) | 210° (SSW) | 90° (O) |
@@ -241,6 +260,7 @@ Alle Szenarien stehen in `SCEN`. Gemeinsame Felder: Startwert des Zufallsgenerat
 | Suchscheinwerfer / Flak | 2 / 3 | 4 / 5 | 5 / 4 |
 
 ### 6.2 Wahrzeichen (Kurs / Entfernung von der Stellung)
+
 **Paris:** Eiffelturm 250°/1.150 m (Gitterkonstruktion aus Trägern, Beleuchtung), Invalidendom 212°/680 m, Tour Montparnasse 195°/1.850 m, Arc de Triomphe 286°/2.350 m, La Défense 291°/5.600 m mit Grande Arche, Sacré-Cœur 15°/2.600 m auf dem Montmartre-Hügel (112 m), Notre-Dame am Seine-Ufer, Panthéon 158°/1.300 m. Seine als Flussband (120 m breit) mit Kaimauern und vier Brücken; Champ de Mars als Park.
 
 **Leipzig:** City-Hochhaus 215°/270 m (Grundriss als gekrümmte Linse, Krone mit Positionslichtern), Gewandhaus, Oper, Nikolaikirche 262°/330 m, Neues Rathaus 236°/820 m, Thomaskirche 252°/680 m, Völkerschlachtdenkmal 160°/4.200 m mit Wasserbecken, Kraftwerk mit zwei Kühltürmen und Dampf 186°/6.800 m, Hauptbahnhof 330°/680 m mit sechs Bahnsteighallen, Wintergartenhochhaus 350°/560 m mit Leuchtring, MDR-Turm. Augustusplatz als freie Fläche; Clara-Zetkin-Park.
@@ -248,6 +268,7 @@ Alle Szenarien stehen in `SCEN`. Gemeinsame Felder: Startwert des Zufallsgenerat
 **Lübeck:** Holstentor 95°/235 m (Rundtürme mit Kegeldächern, Treppengiebel), Salzspeicher, Petrikirche, Marienkirche (Doppelturm), Rathaus mit Schildwand, Dom (Doppelturm), Jakobikirche, Ägidienkirche. Trave und Kanal als Flüsse, Altstadtinsel leicht erhöht (12 m), Holstenbrücke, vier Schiffe mit Lichtern, Platz vor dem Holstentor. Backsteinkirchen und Kupferdächer werden nachts angestrahlt (Emission).
 
 ### 6.3 Anforderungen
+
 - **F-ORT-1** Die Silhouette jedes Orts muss aus der Startposition ohne Drehen erkennbar sein; nahe Häuser dürfen die Wahrzeichen nicht verdecken (in Lübeck daher niedrigere Häuser unter 400 m und ein freier Platz vor dem Holstentor).
 - **F-ORT-2** Wahrzeichen werden zur Stellung hin ausgerichtet (`face`) und erscheinen mit Namen im Kompass.
 - **F-ORT-3** Wahrzeichen (außer La Défense, Grande Arche, Kraftwerk) sind Angriffsziele mit dreifachem Gewicht.
@@ -257,10 +278,11 @@ Alle Szenarien stehen in `SCEN`. Gemeinsame Felder: Startwert des Zufallsgenerat
 ## 7. Stadtgenerator
 
 ### 7.1 Ringe
+
 `genCity(S)` legt ein um `gridRot` gedrehtes Raster in drei Ringen an:
 
 | Ring | Radius | Zelle | Straßenbreite | Bebauung |
-|---|---|---|---|---|
+| --- | --- | --- | --- | --- |
 | 0 (nah) | 22–650 m | `cellNear` (30–36 m) | 12 m | Häuserblöcke mit Einzelhäusern (`cityBlock`) |
 | 1 (mittel) | 650–1.900 m | 54 m | 15 m | Häuserblöcke, Hausbreiten × 1,6 |
 | 2 (fern) | 1.900–5.200 m | 96 m | 24 m | einfache Quader/Zeilen als Silhouette |
@@ -268,7 +290,9 @@ Alle Szenarien stehen in `SCEN`. Gemeinsame Felder: Startwert des Zufallsgenerat
 Zellen fallen weg bei: Nähe zur eigenen Stellung (< 22 m), Ausschlusszonen der Wahrzeichen, Flüssen und Parks. An Blockecken entstehen Straßenlaternen als Leuchtpunkte.
 
 ### 7.2 Häuserblöcke (`cityBlock`)
+
 Ein Block besteht aus Einzelhäusern mit eigener Breite, Geschosszahl, Dachform, Hausvorlage und Farbton. Blocktypen mit Gewichten je Szenario (`kinds`):
+
 - **rand:** Blockrand mit vier Zeilen um einen Innenhof mit Bäumen
 - **doppel:** zwei Zeilen Rücken an Rücken
 - **reihe:** eine Zeile, dahinter Gärten
@@ -278,6 +302,7 @@ Ein Block besteht aus Einzelhäusern mit eigener Breite, Geschosszahl, Dachform,
 Weitere Regeln: Eckhäuser oft ein Geschoss höher, Vor- und Rücksprünge der Bauflucht, giebelständige Häuser (`gs`) und Treppengiebel (`step`), Dachform-Abweichungen (`alt`), Gauben in Spielernähe (< 260 m), Schornsteine.
 
 ### 7.3 Gebäude (`addBuilding`)
+
 - Wände und Dächer als Vierecke im Geometrie-Baukasten `GB`, gebündelt pro Material (wenige Draw-Calls). Vertex-Farben tragen den Farbton jedes Hauses.
 - Dachformen: `flat` (Kies, ab 24 m Höhe mit Aufbau), `mansard` (Zink, mit Schornsteinen und Gauben), `gable` (Satteldach), `step` (Treppengiebel), `none` (eigenes Haus).
 - **15 Hausvorlagen** (`FACADE`): haussmann, stone2, modern, office, platte, gruender, gruender2, brick, brick2, plaster sowie mit Ladenzone im Erdgeschoss pastell, jugend, klinker, nachkrieg, lamelle. Jede Vorlage ist eine 512×512-Textur mit 8×8 Fensterachsen: Farbkarte, Leuchtkarte (beleuchtete Fenster) und Rauheitskarte. Fenstermaße je Vorlage in `STYLE_DIM`.
@@ -285,9 +310,11 @@ Weitere Regeln: Eckhäuser oft ein Geschoss höher, Vor- und Rücksprünge der B
 - Häuser im Umkreis von 230 m landen mit genauem Grundriss in `world.blds` (Blöcke als Umriss mit `kids`) für Kollision, Sichtlinien und Geschosse im Bodenkampf.
 
 ### 7.4 Straßenmöblierung (`addStreetProps`)
+
 Im Umkreis von 260 m: Laternen (mit Lichtkegel auf dem Pflaster), Bänke, Mülleimer (Farbe je Stadt), Straßenbäume. Kreuzungen und der Aufzugsausgang bleiben frei. Alle Objekte stehen in einem 8-m-Raster (`propGrid`) und sind Hindernisse für Spieler und Infanterie; Panzer walzen darüber.
 
 ### 7.5 Wahrzeichen
+
 Aus Grundkörpern gebaut (`prim`), anschließend pro Material zusammengeführt (`bakeGroup`) mit Box-Projektions-UVs im Weltmaßstab. Gitterträger (Eiffelturm) über `beamInto`. Für die Drohnenkollision: Kreis mit halbem Ausschlussradius (max. 45 m) und 80 % der Höhe.
 
 ---
@@ -295,8 +322,9 @@ Aus Grundkörpern gebaut (`prim`), anschließend pro Material zusammengeführt (
 ## 8. Stellung auf dem Dach und vor dem Haus
 
 ### 8.1 Dach (20 × 20 m, Höhe `roofH`)
+
 | Element | Lage (lokal, −Z = Blickrichtung) | Funktion |
-|---|---|---|
+| --- | --- | --- |
 | Brüstung | Rand, 1,15 m hoch mit Abdeckung | Deckung |
 | Trittbrett | innen an der Brüstung, 0,45 m hoch, hinter dem Treppenhaus unterbrochen | hinaufsteigen, nah an die Mauer, beim Blick nach unten vorbeugen (bis 0,45 m) |
 | Sandsäcke | auf dem Trittbrett, Front dreilagig, Flanken zweilagig | Deckung, Optik |
@@ -312,10 +340,12 @@ Aus Grundkörpern gebaut (`prim`), anschließend pro Material zusammengeführt (
 Hindernisse stehen in `roofObstacles`; die Kollision schiebt den Spieler auf dem kürzesten Weg heraus, nie hinter die Mauer.
 
 ### 8.2 Vor dem Haus
+
 - **Vier MG6-Lafetten** auf der Straße, je eine pro Hausseite, Mündung nach außen, mit Sandsackwall im Halbkreis. Jede Lafette bekommt eine Himmelsrichtung als Namen (NORD, OST …).
 - **Aufzugstür** an der Rückfassade mit Schild, Lampe und Ruftaster.
 
 ### 8.3 Anforderungen
+
 - **F-STE-1** Der Spieler kann das Dach nicht verlassen außer per Aufzug oder beim Wechsel an eine Lafette.
 - **F-STE-2** Vom Trittbrett aus muss man über die Brüstung auf die Straße schießen können.
 - **F-STE-3** Die gehaltene Waffe fehlt auf dem Waffentisch; die gestartete Drohne ebenfalls.
@@ -325,7 +355,7 @@ Hindernisse stehen in `roofObstacles`; die Kollision schiebt den Spieler auf dem
 ## 9. Spielerbewegung und Kamera
 
 | Wert | Größe |
-|---|---|
+| --- | --- |
 | Gehen / Laufen (Shift + W) | 3,3 / 5,6 m/s |
 | Ducken (C oder Strg) | halbe Geschwindigkeit, Augenhöhe 1,05 m statt 1,65 m |
 | Beim Zielen | 55 % der Geschwindigkeit |
@@ -343,8 +373,9 @@ Hindernisse stehen in `roofObstacles`; die Kollision schiebt den Spieler auf dem
 ## 10. Waffen
 
 ### 10.1 Waffendaten (`WEAP`)
+
 | | HK416 A5 | AR-15 (16") | MG6 (M134D) | FGM-148 Javelin |
-|---|---|---|---|---|
+| --- | --- | --- | --- | --- |
 | Kaliber | 5,56 × 45 mm | 5,56 / .223 | 7,62 × 51 mm | 127 mm Lenkflugkörper |
 | Kadenz | 850/min | 480/min (nur Einzelfeuer) | 3.000/min | 1 Schuss pro Startrohr |
 | Feuerart | Dauer/Einzel (B) | Einzel | Dauer | Fire and Forget |
@@ -360,6 +391,7 @@ Hindernisse stehen in `roofObstacles`; die Kollision schiebt den Spieler auf dem
 | Besonderheit | – | – | 0,45 s Anlaufzeit, nur auf Lafette | Zielgerät und Aufschaltung nötig |
 
 ### 10.2 Ballistik
+
 - Geschosse fliegen mit linearem Luftwiderstand und Schwerkraft. Die Position wird **exakt** berechnet statt schrittweise integriert:
   `x(t) = o + (g/c)·t + (v0 − g/c)·(1 − e^(−c·t))/c`
 - Flugzeit für eine Entfernung R: `t = −ln(1 − c·R/v0)/c` (keine Lösung, wenn `1 − c·R/v0 ≤ 0,05`).
@@ -367,6 +399,7 @@ Hindernisse stehen in `roofObstacles`; die Kollision schiebt den Spieler auf dem
 - Geschosse verschwinden nach 3 s oder unter dem Boden.
 
 ### 10.3 Schießen
+
 - Streuung wächst mit Bewegung (bis +120 %) und Dauerfeuer („Bloom“, bis +250 %, Abbau 2,6/s).
 - Rückstoß: 55 % bleiben im Nickwinkel, 45 % federn zurück; im Visier 75 %.
 - Hülsen fliegen aus dem Auswurf und hüpfen auf dem Boden (max. 80 gleichzeitig, mit Klirren); das MG6 wirft seltener und nach unten aus.
@@ -376,13 +409,15 @@ Hindernisse stehen in `roofObstacles`; die Kollision schiebt den Spieler auf dem
 - Am Wellenende: Reserve + 2 Magazine (MG6: halber Gurt), höchstens bis zum Startwert.
 
 ### 10.4 MG6 und Lafetten
+
 - Das MG6 ist nur auf einer Lafette nutzbar. Aufnehmen vom Tisch oder Taste 3 wählt die **nächste** Lafette, auf der Straße E an einer Lafette in 1,5 m.
 - Beim Wechsel an die Lafette merkt sich das Spiel die Dachposition; X verlässt die Lafette und kehrt zur letzten Handwaffe und Position zurück.
 - Das Rohrbündel läuft 0,45 s an und 1,4 s aus; geschossen wird erst bei 98 % Drehzahl. Ton: durchlaufende Salve plus Motorgeräusch.
 
 ### 10.5 Javelin (`JAV`)
+
 | Wert | Größe |
-|---|---|
+| --- | --- |
 | Zielaufschaltung | bis 500 m, Zielrahmen 4°, Halten innerhalb 12° |
 | Aufschaltzeit | 1,2 s ruhig im Rahmen (1,5-facher Rahmen zählt) |
 | Suchkopf kühlen | 1,5 s nach dem Aufnehmen |
@@ -400,6 +435,7 @@ Hindernisse stehen in `roofObstacles`; die Kollision schiebt den Spieler auf dem
 - Eigener Flugkörper verletzt den Spieler innerhalb 10 m (bis 60).
 
 ### 10.6 Waffenmodelle (Viewmodel)
+
 - HK416 mit Vierkant-Schiene, AR-15 mit schlankem M-LOK-Handschutz und FDE-Magazin, MG6 mit sechs Läufen, Zuführschacht und Spatengriffen, Javelin mit Startrohr und Zielgerät. Behandschuhte Hände und Tarnärmel.
 - Optik je Feuerleitsystem: kastenförmige SMASH-Optik bzw. Röhrenoptik mit Arbel-Modul an der Abzugsgruppe.
 - Animationen: Schwanken, Kopfnicken, Rückstoß, Laufhaltung, Nachladen (Magazin fällt und kommt wieder), Waffenwechsel (0,5 s), Aufmunitionieren.
@@ -412,6 +448,7 @@ Hindernisse stehen in `roofObstacles`; die Kollision schiebt den Spieler auf dem
 Wahl im Menü, Wechsel im Spiel mit V, Ein/Aus mit F. Bei der Javelin sind beide Systeme außer Kraft.
 
 ### 11.1 Smart Shooter (SMASH)
+
 - **Anforderung:** Rechner und KI berechnen einen Haltepunkt vor; gedacht für Kleindrohnen bis etwa 250 m. Der Abzug bleibt frei.
 - Nur mit Visier aktiv.
 - Aufschaltung auf das Ziel, das am nächsten an der Bildmitte liegt (Kegel 5°, bis 440 m). Die Aufschaltung hält bis 14° Abweichung und 460 m.
@@ -420,6 +457,7 @@ Wahl im Menü, Wechsel im Spiel mit V, Ein/Aus mit F. Bei der Javelin sind beide
 - Q wechselt zum nächsten Ziel.
 
 ### 11.2 Arbel
+
 - **Anforderung:** Bei gehaltenem Abzug werden nur Schüsse freigegeben, deren berechnete Flugbahn treffen kann; alle anderen werden gesperrt.
 - Für **jeden** Schuss wird die tatsächliche Richtung inklusive Streuung geprüft (`arbelPredict`):
   1. Ziele bis 700 m innerhalb eines Kegels (cos > 0,96, etwa 16°).
@@ -433,6 +471,7 @@ Wahl im Menü, Wechsel im Spiel mit V, Ein/Aus mit F. Bei der Javelin sind beide
 ## 12. Abfangdrohne
 
 ### 12.1 Einsatz vom Waffentisch (`G.uav`)
+
 - **Anforderung:** Aus der Drohne selbst fliegen; die Drohne feuert automatisch.
 - Start mit E am Tisch. Die Drohne startet vom Landeplatz H; der Soldat bleibt auf dem Dach, seine Gesundheit wird gemerkt.
 - 200 Schuss pro Einsatz (`UAV.ammo`), **Funkreichweite 500 m** um den Landeplatz (weiche Grenze mit Rückstoß und Warnung ab 460 m), kein Akkuverbrauch.
@@ -441,8 +480,9 @@ Wahl im Menü, Wechsel im Spiel mit V, Ein/Aus mit F. Bei der Javelin sind beide
 - Status links oben: „ABFANGDROHNE BEREIT · n SCHUSS“, „IM EINSATZ“ oder Countdown.
 
 ### 12.2 Flugmodell
+
 | Wert | Größe |
-|---|---|
+| --- | --- |
 | Beschleunigung / Boost (Shift + W) | 28 / 46 m/s² |
 | Dämpfung | v × e^(−0,55·dt) (Endgeschwindigkeit etwa 51 bzw. 84 m/s) |
 | Steigen / Sinken | Leertaste / C oder Strg (90 % Anteil) |
@@ -453,6 +493,7 @@ Wahl im Menü, Wechsel im Spiel mit V, Ein/Aus mit F. Bei der Javelin sind beide
 | Neigung und Rollen | aus Geschwindigkeit und Eingabe, gedämpft |
 
 ### 12.3 Bord-MG und Auto-Feuer (`DRW`)
+
 - 5,56 mm, 900/min, v0 900 m/s, Streuung 0,3°, jede 3. Patrone Leuchtspur.
 - **Zielnachführung:** Der MG-Turm schwenkt bis 9° aus der Flugrichtung auf den berechneten Vorhaltepunkt (`solveIntercept`) des besten Ziels bis 650 m.
 - **Auto-Feuer (F, Standard an):** Ist ein Ziel erfasst, wird jeder Schuss mit der Arbel-Prüfung (`arbelPredict`) freigegeben. Zurückgehaltene Schüsse werden gezählt.
@@ -460,12 +501,14 @@ Wahl im Menü, Wechsel im Spiel mit V, Ein/Aus mit F. Bei der Javelin sind beide
 - Rechte Maustaste zoomt (FOV 34°).
 
 ### 12.4 Kamera und Anzeige
+
 - **Verfolgerkamera** (Standard): 7,5 m hinter und 2,2 m über der Drohne, über Gebäuden gehalten, FOV 76°.
 - **FPV-Bugkamera** (V): FOV 92°, Drohne ausgeblendet, Horizont rollt mit.
 - OSD: Nickleiter, Geschwindigkeitsvektor, MG-Absehen an der tatsächlichen Turmrichtung, Zielrahmen „AUTO-FEUER · Typ · Entfernung“, Geschwindigkeit in km/h, Höhe über Grund, Steigrate, Markierung „H BASIS n m“, Warnungen (Reichweite, Munition), „[X] DROHNE ZURÜCKRUFEN“.
 - Motorgeräusch aus drei Sägezahn-Oszillatoren, Tonhöhe folgt Geschwindigkeit und Boost.
 
 ### 12.5 Gegnerverhalten gegenüber der Drohne
+
 FPV-Drohnen, Explosionen, Trümmer, Panzergranaten und Infanteriefeuer zielen auf die Drohne (`playerPoint()`), solange sie fliegt. Infanterie trifft die Drohne mit 60 % der normalen Wahrscheinlichkeit.
 
 ---
@@ -473,8 +516,9 @@ FPV-Drohnen, Explosionen, Trümmer, Panzergranaten und Infanteriefeuer zielen au
 ## 13. Luftgegner
 
 ### 13.1 Typen (`DT`)
+
 | Typ | Anzeige | Treffer | Trefferradius | Geschw. | Punkte | Stadtschaden |
-|---|---|---|---|---|---|---|
+| --- | --- | --- | --- | --- | --- | --- |
 | shahed | GERAN-2 / SHAHED-136 | 4 | 2,0 m | 50 m/s | 150 | 7 % |
 | geran5 | GERAN-5 (Strahltriebwerk) | 6 | 2,7 m | 112 m/s | 260 | 12 % |
 | quad | Quadcopter (Mavic-Typ) | 1 | 0,8 m | 15 m/s | 60 | – |
@@ -484,8 +528,9 @@ FPV-Drohnen, Explosionen, Trümmer, Panzergranaten und Infanteriefeuer zielen au
 Modelle: Shahed als schwarzer Deltaflügler mit Winglets und Druckpropeller; Geran-5 grau mit Rumpf, Pfeilflügel, V-Leitwerk und aufgesetztem Strahltriebwerk mit Flamme; Quadcopter hellgrau mit blinkenden LEDs und Granate; FPV als Carbon-X-Rahmen mit RPG-Gefechtskopf; Lastdrohne weiß mit vier großen Rotoren, Tank, Kufen und Bombe.
 
 ### 13.2 Erscheinen
+
 | Typ | Entfernung | Höhe | Richtung |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | shahed | 2.400 m | Dach + 55…120 m | Bedrohungsrichtung ± Streuung |
 | geran5 | 3.000 m | 210…320 m | Bedrohungsrichtung ± Streuung |
 | quad | 800…1.000 m | Dach + 28…60 m | 30 % aus beliebiger Richtung |
@@ -495,12 +540,14 @@ Modelle: Shahed als schwarzer Deltaflügler mit Winglets und Druckpropeller; Ger
 Shaheds kommen mit 35 % Wahrscheinlichkeit als Schwarm (1–2 Begleiter, 2–3,5 s Abstand, ±4° Kurs).
 
 ### 13.3 Verhalten
+
 - **Shahed / Geran-5:** Reiseflug auf ein Ziel (60 % Ziele auf der Anflugseite, gewichtet: Wahrzeichen 3, Wohnblock 1), leichtes Schlingern und Höhenschwankung. Sturzflug, sobald der waagerechte Abstand kleiner als 1,25 × (Shahed) bzw. 0,9 × (Geran-5) die Höhe über dem Ziel ist; Sturzgeschwindigkeit 72 bzw. 150 m/s. Bei Erreichen: Einschlag, Rauchsäule, Stadtschaden.
 - **Quadcopter:** Anflug auf einen Kreis um die Stellung (Radius 30–65 m, Höhe Dach + 14…32 m), kreisen 5–10 s mit Blick zum Spieler, dann Überflug in Dach + 17 m mit Vorhalt auf die Spielerbewegung und **Granatenabwurf** (2 Granaten). Danach zurück auf den Kreis; ohne Granaten Abflug und Verschwinden nach 1.200 m.
 - **FPV:** Anflug in Zickzack bis etwa 140 m, dann **Endanflug** auf den Spieler mit 37 m/s und abnehmendem Ausweichen; Treffer unter 2,3 m. Verfehlt sie, folgt ein neuer Anlauf.
 - **Lastdrohne:** fliegt 38 m über ein Ziel (50 % die Stellung, sonst ein Ziel im Umkreis von 450 m), wirft eine **Bombe** ab und fliegt davon.
 
 ### 13.4 Abschuss
+
 - Kleine Drohnen fallen trudelnd mit Rauchspur, ihre Rotoren verschwinden.
 - Große Drohnen: Treffer im vorderen Bereich (mehr als 30 % des Radius vor der Mitte) lösen mit 40 % Wahrscheinlichkeit den **Gefechtskopf** aus: sofortige Explosion in der Luft, 1,5-fache Punkte.
 - Abstürzende Drohnen explodieren am Boden; Trümmer verletzen in der Nähe.
@@ -511,14 +558,16 @@ Shaheds kommen mit 35 % Wahrscheinlichkeit als Schwarm (1–2 Begleiter, 2–3,5
 ## 14. Bodengegner
 
 ### 14.1 Typen (`DT`, `ground: true`)
+
 | Typ | Anzeige | Treffer | Geschw. | Punkte | Bewaffnung | Kampfentfernung |
-|---|---|---|---|---|---|---|
+| --- | --- | --- | --- | --- | --- | --- |
 | soldier | Feindliche Infanterie | 3 | 3,2 m/s | 80 | Gewehr, Feuerstöße 2–4, 4–7 Schaden | 28–60 m |
 | assault | Sturmsoldat (leichtes MG) | 7 | 2,7 m/s | 170 | LMG, Feuerstöße 4–7, 6–9 Schaden, Treffer × 1,4 | 30–65 m |
 | commander | Kommandant mit Schild | 5 + Schild 20 | 3,0 m/s | 280 | Pistole, 4–6 Schaden, Handgranaten | 16–30 m |
 | tank | Kampfpanzer | 200 + 100 je Stufe über 1 | 4 m/s (+0,3 je Stufe) | 1.200 × Stufe | Kanone (55 × (1 + 0,15·(Stufe − 1)), Radius 8 m) und Koax-MG | Halt bei 55 m |
 
 ### 14.2 Regeln
+
 - **Sichtlinie:** Alle 0,2 s Prüfung Auge → Spieler gegen Hauswände (`segBlock`). Ohne Sichtlinie keine Markierung, keine Aufschaltung, kein Feuer (der Panzer bleibt im HUD sichtbar).
 - **Treffer der Gegner** sind Wahrscheinlichkeiten: Basis `0,3 − 0,003·Entfernung` (5–30 %), + 2 % je Welle, × Waffenfaktor; Bewegung (bis −40 %), Ducken (−45 %) und Dachposition (−40 %) senken sie. Jeder Schuss erzeugt sichtbare feindliche Leuchtspur.
 - **Kommandant:** Das Schild deckt Treffer von vorn (Winkel cos > 0,45) bei einem Schusswinkel von oben unter 40°. Schild zerstörbar (20 Treffer). Handgranate alle 7–11 s auf 8–32 m, nur wenn der Spieler auf Straßenhöhe steht und nicht in der Drohne ist; Wurfbahn ballistisch mit Streuung, prallt von Wänden ab.
@@ -527,6 +576,7 @@ Shaheds kommen mit 35 % Wahrscheinlichkeit als Schwarm (1–2 Begleiter, 2–3,5
 - Gefallene Soldaten kippen um und verschwinden nach 12 s, Wracks nach 60 s.
 
 ### 14.3 Wegfindung
+
 - Abstandsfeld (Flow Field) auf einem 2-m-Raster über 224 × 224 m, zwei Ebenen: Infanterie (Freiraum 0,6 m, beachtet Möblierung) und Panzer (2,8 m, walzt Möblierung).
 - **Ziele**, solange der Spieler auf dem Dach ist: Plätze 16–55 m vom Haus mit freier Sicht auf die Dachkante, bevorzugt mit Sicht auf die aktuelle Spielerposition. Auf der Straße: freie Zellen rund um den Spieler.
 - Neuberechnung alle 0,5 s (Breitensuche, 8 Nachbarn, keine Abkürzung über Hausecken).
@@ -538,9 +588,11 @@ Shaheds kommen mit 35 % Wahrscheinlichkeit als Schwarm (1–2 Begleiter, 2–3,5
 ## 15. Wellen, Punkte, Spielende
 
 ### 15.1 Wellenaufbau (`waveDef`)
+
 **Drohnenabwehr**, Dauer 20 + 5·n s:
+
 | Typ | Anzahl in Welle n |
-|---|---|
+| --- | --- |
 | quad | 2 + n |
 | shahed | 1 + ⌊0,9·n⌋ (+ Schwärme) |
 | fpv | ⌊0,7·n⌋ ab Welle 2 |
@@ -550,18 +602,21 @@ Shaheds kommen mit 35 % Wahrscheinlichkeit als Schwarm (1–2 Begleiter, 2–3,5
 **Bodenkampf**, Dauer 14 + 3·n s: insgesamt min(3 + n; 14) Infanteristen, davon min(5; max(1; ⌊(n − 1)/2⌋)) Sturmsoldaten und min(3; max(1; 1 + ⌊(n − 4)/4⌋)) Kommandanten, also ab Welle 1 je mindestens einer. In jeder 5. Welle ein Kampfpanzer der Stufe n/5.
 
 ### 15.2 Ablauf
+
 - Welle startet mit großer Meldung und Sirene; neue Gegnertypen werden beim ersten Auftreten gemeldet (beim Kommandanten mit Hinweis auf das Schild).
 - Welle endet, wenn die Warteschlange leer ist und kein Gegner mehr lebt; 9 s Pause mit Bonus und Munitionsnachschub.
 
 ### 15.3 Punkte
+
 - Grundwert des Typs × Panzerstufe.
 - × 1,5 bei Gefechtskopf-Treffer, × 1,3 bei mehr als 300 m Entfernung.
 - **Kette:** Abschüsse innerhalb von 4,5 s erhöhen den Multiplikator bis × 5.
 - Abschussliste rechts mit Entfernung, Punkte schweben über dem Ziel.
 
 ### 15.4 Spielende
+
 | Bedingung | Titel |
-|---|---|
+| --- | --- |
 | Gesundheit 0 (Soldat) | GEFALLEN |
 | Stadtschutz 0 % (nur Drohnenabwehr) | STADT NICHT GEHALTEN |
 | Drohne zerstört im Pilotenmodus (5.4) | DROHNE ZERSTÖRT |
@@ -573,7 +628,7 @@ Ein Spielende während eines Drohneneinsatzes vom Tisch beendet zuerst den Einsa
 ## 16. Schadensquellen
 
 | Quelle | Schaden | Reichweite |
-|---|---|---|
+| --- | --- | --- |
 | FPV-Treffer | 58 | < 2,3 m |
 | FPV-Aufschlag am Boden | bis 40 | 7 m |
 | Granatenabwurf (Quad) / Handgranate | bis 55 (Ducken × 0,7) | 7 m |
@@ -596,7 +651,7 @@ Jeder Treffer zeigt eine Meldung mit Ursache, einen roten Richtungsbogen um die 
 Gezeichnet auf einem 2D-Canvas über dem 3D-Bild (Pixelverhältnis bis 2).
 
 | Bereich | Inhalt |
-|---|---|
+| --- | --- |
 | Oben links | Stadt, Uhrzeit, Welle, Punktestand (7-stellig), Kette mit Zeitbalken, Status der Abfangdrohne |
 | Oben Mitte | Kompassband ±60° mit Himmelsrichtungen, Wahrzeichen-Namen, Gegnerdreiecken, Kursanzeige |
 | Oben rechts | Stadtschutz mit Balken bzw. „BODENKAMPF · DACH/STRASSE/AUFZUG“, Kontakte und erwartete Gegner, Abschüsse und Trefferquote |
@@ -643,8 +698,9 @@ Alle Klänge werden zur Laufzeit synthetisiert (Web Audio, keine Dateien).
 ## 20. Steuerung
 
 ### 20.1 Soldat
+
 | Eingabe | Wirkung |
-|---|---|
+| --- | --- |
 | Maus | Zielen |
 | Linke Maustaste | Feuer (halten) |
 | Leertaste | Feuer (halten), wie linke Maustaste; für Touchpads, damit Zielen per Zwei-Finger-Klick gleichzeitig möglich ist |
@@ -664,8 +720,9 @@ Alle Klänge werden zur Laufzeit synthetisiert (Web Audio, keine Dateien).
 | H | Bedienelemente ein/aus (siehe 20.3) |
 
 ### 20.2 Abfangdrohne
+
 | Eingabe | Wirkung |
-|---|---|
+| --- | --- |
 | Maus | Flugrichtung |
 | W / S, A / D | vor/zurück, seitwärts |
 | Leertaste / C oder Strg | steigen / sinken |
@@ -679,6 +736,7 @@ Alle Klänge werden zur Laufzeit synthetisiert (Web Audio, keine Dateien).
 | H | Bedienelemente ein/aus (siehe 20.3) |
 
 ### 20.3 Hilfe-Overlay
+
 - `H` schaltet die Bedienelemente als Overlay ein und aus (Umschalten, nicht Halten).
 - Das Spiel läuft beim Einblenden weiter; `H` pausiert nicht.
 - Das Overlay ist nur im aktiven Spiel und im Pausenmenü sichtbar, nicht im Startmenü, Briefing oder Game-Over.
@@ -694,7 +752,7 @@ Alle Klänge werden zur Laufzeit synthetisiert (Web Audio, keine Dateien).
 `localStorage`; jeder Zugriff ist in `try/catch` gekapselt, das Spiel läuft auch ohne Speicher.
 
 | Schlüssel | Inhalt |
-|---|---|
+| --- | --- |
 | `dab_prefs` | `{ scen, mode, weapon, play, gm }` |
 | `dab_hi_<stadt>` | Rekord Drohnenabwehr |
 | `dab_hi_<stadt>_land` | Rekord Bodenkampf |
@@ -710,6 +768,7 @@ Alle Klänge werden zur Laufzeit synthetisiert (Web Audio, keine Dateien).
 - `DAB.tick(dt, true)` rechnet einen Schritt ohne Zeichnen.
 
 Beispiel: Quadcopter 90 m vor die Kamera setzen und 2 s simulieren:
+
 ```js
 const d = DAB.spawnDrone('quad'); d.pos.copy(DAB.camera.position).add(new DAB.THREE.Vector3(0, 10, -90));
 d.state = 'orbit'; d.loiter = 99; DAB.run(2);
@@ -738,24 +797,28 @@ Diese Regeln stammen aus behobenen Fehlern und sind bei Änderungen einzuhalten.
 
 Prüfbar im Browser (bei verdecktem Tab mit `DAB.run`).
 
-**Allgemein**
+### 24.1 Allgemein
+
 - [ ] Datei lädt ohne Konsolenfehler; Menü zeigt vier Abschnitte und drei Skylines.
 - [ ] Jede Kombination aus Modus, Stadt, System und Waffe baut ohne Fehlermeldung auf.
 - [ ] Neuer Einsatz nach Spielende baut die Stadt neu auf und setzt alle Werte zurück.
 - [ ] Keine hellen Quadrate oder Blöcke am Himmel in allen drei Städten.
 
-**Städte**
+### 24.2 Städte
+
 - [ ] Paris: Eiffelturm als Silhouette vor der Abendsonne in der Startblickrichtung.
 - [ ] Leipzig: City-Hochhaus und Neues Rathaus im Blick, Kühltürme mit Dampf am Horizont.
 - [ ] Lübeck: Holstentor in der Bildmitte, Kirchtürme dahinter, nicht von Nachbarhäusern verdeckt.
 
-**Waffen und Feuerleitung**
+### 24.3 Waffen und Feuerleitung
+
 - [ ] SMASH: Mit Visier wird ein Quadcopter in 0,35 s aufgeschaltet; ein Schuss auf den Haltepunkt trifft.
 - [ ] Arbel: Bei absichtlich ungenauem Dauerfeuer werden die meisten Schüsse gesperrt; gesperrte Schüsse kosten keine Munition.
 - [ ] MG6: Feuer erst nach dem Anlaufen, an der nächsten Lafette; X kehrt zurück.
 - [ ] Javelin: ohne Aufschaltung kein Start; aufgeschaltetes Ziel wird getroffen; nächster Flugkörper 5 s nach dem Schuss.
 
-**Gegner und Wellen**
+### 24.4 Gegner und Wellen
+
 - [ ] Welle 1 Drohnenabwehr: 3 Quadcopter und 1 Shahed (plus möglicher Schwarm).
 - [ ] Shahed-Einschlag senkt den Stadtschutz um 7 % und hinterlässt eine Rauchsäule.
 - [ ] Quadcopter werfen Granaten über der Stellung ab.
@@ -763,13 +826,15 @@ Prüfbar im Browser (bei verdecktem Tab mit `DAB.run`).
 - [ ] Schild des Kommandanten hält frontale Treffer; von der Seite oder steil von oben trifft man.
 - [ ] Gegner hinter Hauswänden werden nicht markiert und schießen nicht.
 
-**Abfangdrohne**
+### 24.5 Abfangdrohne
+
 - [ ] Start am Waffentisch mit E; 200 Schuss; Grenze bei 500 m.
 - [ ] Auto-Feuer gibt nur treffende Schüsse frei; der Turm folgt dem Ziel bis 9°.
 - [ ] X ruft zurück, Restmunition bleibt; nach Verschießen 2:50 min gesperrt.
 - [ ] Zerstörung der Drohne beendet das Spiel nicht.
 
-**Ablauf**
+### 24.6 Ablauf
+
 - [ ] Esc pausiert, Klick setzt fort; Spielende zeigt die Auswertung und speichert einen neuen Rekord.
 
 ---
@@ -786,4 +851,3 @@ Prüfbar im Browser (bei verdecktem Tab mit `DAB.run`).
 8. **Leistung** auf schwacher Hardware nicht gemessen; die Stadt hat einige hunderttausend Eckpunkte.
 9. **Javelin-Angriffsprofil:** nur Direktangriff (DIR); der Top-Attack-Modus (TOP) wird angezeigt, ist aber nicht umgesetzt.
 10. **Eigenes Haus** ist für die Drohne nur bis zur Dachfläche kollidierbar, nicht bis zur Brüstung.
-

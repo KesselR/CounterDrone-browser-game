@@ -3,8 +3,9 @@
 Erklärungen zu Namen aus dem Quelltext und Fachbegriffen der [SPEC](SPEC.md).
 
 ## Namen aus dem Quelltext
+
 | Name | Bedeutung |
-|---|---|
+| --- | --- |
 | `G` | Spielzustand: Zustand (Menü, Spiel, Pause …), Modus, Welle, Punkte, Stadtschutz, Meldungen |
 | `P` | Spieler: Position, Blickrichtung, Gesundheit, Ducken, Lafette |
 | `RT` | Laufzeitwerte der Waffe: Feuerpause, Nachladen, Waffenwechsel, Rückstoß, MG6-Drehzahl |
@@ -38,8 +39,9 @@ Erklärungen zu Namen aus dem Quelltext und Fachbegriffen der [SPEC](SPEC.md).
 | `DAB` | Diagnosezugang in der Browser-Konsole |
 
 ## Fachbegriffe
+
 | Begriff | Bedeutung |
-|---|---|
+| --- | --- |
 | ADS | Aim Down Sights (über Visier zielen), rechte Maustaste |
 | Arbel | Feuerleitsystem, das bei gehaltenem Abzug nur treffende Schüsse freigibt |
 | Bloom | Leuchteffekt um sehr helle Bildstellen |
