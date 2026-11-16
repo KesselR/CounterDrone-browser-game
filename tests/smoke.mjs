@@ -104,6 +104,56 @@ try {
       check(await page.evaluate(s => DAB.G.shots === s, shots1), 'Leertaste: nach dem Loslassen kein Feuer mehr');
       check((await keyTexts('#menuKeys')).some(k => /LEERTASTE/.test(k)), 'Leertaste: Startmenü nennt die Taste');
 
+      // Wechsel Dach ↔ Lafette läuft durchs Treppenhaus
+      await press('Digit3');
+      await run(0.6);
+      check(await page.evaluate(() => DAB.G.lift?.stairs && DAB.P.onMount), 'Treppenhaus: Taste 3 auf dem Dach führt die Treppe hinunter');
+      const frozen = () => page.evaluate(() => { const d = DAB.drones.at(-1); return { t: DAB.G.time, x: d.pos.x, y: d.pos.y, z: d.pos.z }; });
+      await page.evaluate(() => DAB.spawnDrone('quad'));
+      const w0 = await frozen();
+      await run(0.5);
+      check(JSON.stringify(await frozen()) === JSON.stringify(w0), 'Treppenhaus: Spielzeit und Gegner stehen während der Fahrt still');
+      await run(1.9);
+      check(await page.evaluate(() => DAB.G.lift?.stairs), 'Treppenhaus: Fahrt dauert nach 3 s noch an');
+      await run(0.6);
+      check(await page.evaluate(() => !DAB.G.lift && DAB.P.onMount && DAB.G.street), 'Treppenhaus: unten an der Lafette angekommen');
+      await run(0.6);
+      await press('KeyX');
+      await run(3.5);
+      check(await page.evaluate(() => !DAB.G.lift && !DAB.P.onMount && DAB.P.pos.y === DAB.world.roofH), 'Treppenhaus: X führt zurück aufs Dach');
+      const shotsArrive = await page.evaluate(() => DAB.G.shots);
+      await page.keyboard.down('Space');
+      await run(0.4);
+      check(await page.evaluate(s => DAB.G.shots === s, shotsArrive), 'Treppenhaus: nach der Ankunft 0,5 s kein Feuer');
+      await page.keyboard.up('Space');
+      await run(0.2);
+      await page.evaluate(() => DAB.requestWeapon('mg6'));
+      await run(0.5);
+      const shotsSkip = await page.evaluate(() => DAB.G.shots);
+      await page.keyboard.down('Space');
+      await run(0.1);
+      check(await page.evaluate(() => !DAB.G.lift && DAB.P.onMount), 'Treppenhaus: Leertaste überspringt die Fahrt');
+      await run(1.0);
+      check(await page.evaluate(s => DAB.G.shots === s, shotsSkip), 'Treppenhaus: gehaltene Leertaste feuert nach dem Überspringen nicht');
+      await page.keyboard.up('Space');
+      await press('KeyX');
+      await run(0.5);
+      await page.mouse.click(320, 180);
+      await run(0.1);
+      check(await page.evaluate(() => !DAB.G.lift && !DAB.P.onMount), 'Treppenhaus: Klick überspringt die Fahrt');
+      // Taste T: Schwarzblende statt Fahrt, gespeichert über das Neuladen (am Ende dieses Einsatzes geprüft)
+      await run(0.6);
+      await press('KeyT');
+      const stairsOff = async label => {
+        await page.evaluate(() => DAB.requestWeapon('mg6'));
+        await run(0.3);
+        const t0 = await time();
+        await run(0.4);
+        check(await page.evaluate(t => !DAB.G.lift && DAB.P.onMount && DAB.G.time - t < 0.2, t0), label);
+      };
+      await stairsOff('Treppenhaus: mit T ausgeschaltet nur kurze Schwarzblende, Welt steht dabei still');
+      check((await keyTexts('#menuKeys')).some(k => /^T.*Treppenhaus/.test(k)), 'Treppenhaus: Startmenü nennt Taste T');
+
       check(!await helpVisible(), 'Hilfe: Overlay ist beim Einsatzstart ausgeblendet');
       await press('KeyH');
       check(await helpVisible(), 'Hilfe: H blendet das Overlay ein');
@@ -155,6 +205,10 @@ try {
       await setState('brief');
       await press('KeyH');
       check(!await helpVisible(), 'Hilfe: H im Briefing zeigt kein Overlay');
+
+      await load();
+      await start('ground');
+      await stairsOff('Treppenhaus: Einstellung von T bleibt nach dem Neuladen erhalten');
     },
   });
 

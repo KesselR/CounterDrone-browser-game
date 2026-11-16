@@ -24,6 +24,7 @@ Erklärungen zu Namen aus dem Quelltext und Fachbegriffen der [SPEC](SPEC.md).
 | `HM` | Höhenkarte der Stadt für die Kollision der Drohne |
 | `FF` | Flow Field (Abstandsfeld) für die Wegfindung der Bodengegner |
 | `LAND` | Werte des Bodenkampfs (Bewegungsradius, Aufzugdauer) |
+| `STAIR` | Treppenhaus-Fahrt beim Wechsel zwischen Dach und Lafette: Dauer, Tempo, Szene, Einstellung von Taste T |
 | `world` | alles zum aufgebauten Level: Gebäude, Ziele, Lafetten, Waffentisch, Landeplatz |
 | `world.blds` | genaue Hausgrundrisse in Spielernähe für Kollision und Sichtlinien |
 | `buildLevel` | baut Stadt, Wahrzeichen und Stellung für einen Einsatzort auf |

@@ -38,6 +38,10 @@ Während der Umsetzung getroffen, begründet und änderbar:
 - **E7** Gegner zielen auf die fliegende Drohne, solange sie in der Luft ist.
 - **E8** Wellen, Punkte, Kettenbonus und Rekord nach dem Vorbild von Hoth; Stadtschutz als zweite Niederlagebedingung.
 - **E9** Optiken beim Zielen als 2D-Darstellung statt 3D-Modell, für ein freies Sichtfeld.
+- **E10** Der Wechsel zwischen Dach und Lafette läuft als Lauf durchs Treppenhaus im Schnelldurchgang (#12), damit der Ortswechsel nicht wie ein Teleport wirkt.
+  Während der Fahrt steht die Welt still, damit die Animation im Gefecht nichts kostet; dafür sperrt die Ankunft das Feuern für 0,5 s Spielzeit.
+  Die Kamera läuft nur drei Geschosse, die Anzeige zählt alle; so dreht sie sich ruhig genug, um keinen Schwindel auszulösen.
+  Ausgelöst wird von überall, nicht an der Treppentür, damit der Wechsel im Gefecht schnell bleibt.
 
 ### T – Technische Hinweise
 
@@ -328,7 +332,7 @@ Aus Grundkörpern gebaut (`prim`), anschließend pro Material zusammengeführt (
 | Brüstung | Rand, 1,15 m hoch mit Abdeckung | Deckung |
 | Trittbrett | innen an der Brüstung, 0,45 m hoch, hinter dem Treppenhaus unterbrochen | hinaufsteigen, nah an die Mauer, beim Blick nach unten vorbeugen (bis 0,45 m) |
 | Sandsäcke | auf dem Trittbrett, Front dreilagig, Flanken zweilagig | Deckung, Optik |
-| Treppenhaus mit Aufzug | hinten links | Aufzug zur Straße, Schild und Ruftaster |
+| Treppenhaus mit Aufzug | hinten links | Aufzug zur Straße, Schild und Ruftaster; daneben Tür „TREPPE“ (nur Kulisse für den Wechsel zur Lafette) |
 | Waffentisch | Mitte links | HK416, AR-15, MG6, Javelin und Abfangdrohne mit Fernbedienung zum Aufnehmen |
 | Munitionskisten | vorne rechts, mit Tablet (Lagebild) | Reserven auffüllen |
 | Radar auf Stativ | vorne links | dreht sich |
@@ -343,6 +347,7 @@ Hindernisse stehen in `roofObstacles`; die Kollision schiebt den Spieler auf dem
 
 - **Vier MG6-Lafetten** auf der Straße, je eine pro Hausseite, Mündung nach außen, mit Sandsackwall im Halbkreis. Jede Lafette bekommt eine Himmelsrichtung als Namen (NORD, OST …).
 - **Aufzugstür** an der Rückfassade mit Schild, Lampe und Ruftaster.
+- **Treppentür** daneben mit Schild „TREPPE“, nur Kulisse.
 
 ### 8.3 Anforderungen
 
@@ -367,6 +372,15 @@ Hindernisse stehen in `roofObstacles`; die Kollision schiebt den Spieler auf dem
 - Kopfnicken beim Gehen, Kamerawackeln bei Explosionen (`G.shake`), Rückstoß als Nickversatz.
 - Auf der Straße: Kollision mit Häusern, Möblierung, Wahrzeichen und Flüssen (`walkBlocked`), Radius 100 m, kein Durchlaufen von Panzern.
 - **Aufzug:** Fahrt 2,4 s mit Abblende; in der Mitte wird die Position getauscht. Während der Fahrt kein Feuern.
+- **Treppenhaus** (Wechsel zwischen Dach und Lafette, siehe E10): Abblende, 3 s Fahrt durch eine eigene Treppenhaus-Szene, Aufblende; zusammen 3,5 s (`STAIR`).
+  Position und Waffe werden in der ersten Abblende getauscht.
+  Die Fahrt beginnt langsam, wird in der Mitte schnell und bremst ab; im schnellen Teil weiteres Sichtfeld, Vignette und Fahrtstreifen links und rechts.
+  Die Geschossanzeige zählt von `DACH` bis `EG`, Anzahl Geschosse = Haushöhe / 3,1 m (gerundet, mindestens 3).
+  Welt, Spielzeit, Schaden und Heilung stehen still; Umgebungsgeräusche sind gedämpft.
+  Klick oder Leertaste überspringen die Fahrt, die Leertaste feuert danach erst nach dem Loslassen.
+  Nach der Ankunft kein Feuer für 0,5 s Spielzeit.
+  Mit Taste T ausgeschaltet ersetzt eine Schwarzblende von 0,6 s mit „TREPPENHAUS“ die Fahrt, mit denselben Regeln.
+  Aufzug und Wechsel an eine Lafette auf der Straße bleiben ohne Treppenhaus.
 
 ---
 
@@ -716,6 +730,7 @@ Alle Klänge werden zur Laufzeit synthetisiert (Web Audio, keine Dateien).
 | V | Feuerleitsystem wechseln (SMASH ↔ Arbel) |
 | Q | Ziel wechseln (SMASH bzw. Javelin) |
 | Esc / P | Pause |
+| T | Treppenhaus-Animation an/aus (gespeichert) |
 | M | Ton an/aus |
 | H | Bedienelemente ein/aus (siehe 20.3) |
 
@@ -757,6 +772,7 @@ Alle Klänge werden zur Laufzeit synthetisiert (Web Audio, keine Dateien).
 | `dab_hi_<stadt>` | Rekord Drohnenabwehr |
 | `dab_hi_<stadt>_land` | Rekord Bodenkampf |
 | `dab_hi_<stadt>_drone` (+ `_land`) | Rekord im Pilotenmodus (5.4) |
+| `dab_stairs` | `'0'` = Treppenhaus-Animation aus (Taste T), sonst an |
 
 ---
 
