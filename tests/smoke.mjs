@@ -10,11 +10,16 @@ const browser = await chromium.launch({
   args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader'],
 });
 const DEFAULT_VIEWPORT = { width: 640, height: 360 }; // klein, weil Chrome in Software rendert
-const page = await browser.newPage({ viewport: DEFAULT_VIEWPORT });
-page.setDefaultTimeout(20000);
 const errors = [];
-page.on('pageerror', e => errors.push(String(e)));
-page.on('console', m => m.type() === 'error' && errors.push(m.text()));
+// Neue Seite; der Touch-Durchlauf nutzt eine eigene mit emuliertem Smartphone
+const newPage = async (opts = {}) => {
+  const p = await browser.newPage({ viewport: DEFAULT_VIEWPORT, ...opts });
+  p.setDefaultTimeout(20000);
+  p.on('pageerror', e => errors.push(String(e)));
+  p.on('console', m => m.type() === 'error' && errors.push(m.text()));
+  return p;
+};
+let page = await newPage();
 
 let fails = 0;
 const check = (cond, msg) => {
@@ -225,6 +230,75 @@ try {
       check(await helpVisible(), 'Hilfe: H blendet das Overlay im Pilotenmodus ein');
       const keys = await keyTexts('#helpKeys');
       check(keys.some(k => /Boost/i.test(k)) && keys.some(k => /FPV/i.test(k)), 'Hilfe: Overlay zeigt die Drohnen-Steuerung');
+    },
+  });
+  // Touch-Steuerung (Issue #14): emuliertes Smartphone im Querformat, Berührungen über das DevTools-Protokoll
+  await page.close();
+  page = await newPage({ hasTouch: true, isMobile: true });
+  const cdp = await page.context().newCDPSession(page);
+  const touch = (type, points = []) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: points.map(([x, y, id = 0]) => ({ x, y, id })) });
+  const tap = async (x, y) => { await touch('touchStart', [[x, y]]); await touch('touchEnd'); };
+  const touchVisible = () => page.evaluate(() => !document.getElementById('touch').classList.contains('hidden'));
+  await mission('ground', {
+    steps: async () => {
+      await run(0.05);
+      check(!await touchVisible(), 'Touch: Bedienfeld vor der ersten Berührung verborgen');
+      await tap(480, 150);
+      await run(0.05);
+      check(await touchVisible(), 'Touch: Bedienfeld erscheint nach der ersten Berührung');
+      await press('KeyW');
+      await run(0.05);
+      check(!await touchVisible(), 'Touch: Tastatureingabe blendet das Bedienfeld aus');
+      await tap(480, 150);
+      await run(0.05);
+
+      // Stick links: nach oben ziehen läuft vorwärts, Loslassen hält an
+      const pos = () => page.evaluate(() => ({ x: DAB.P.pos.x, z: DAB.P.pos.z }));
+      const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
+      const p0 = await pos();
+      await touch('touchStart', [[120, 260, 1]]);
+      await touch('touchMove', [[120, 200, 1]]);
+      await run(0.6);
+      const p1 = await pos();
+      check(dist(p0, p1) > 0.5, 'Touch: Stick links bewegt den Spieler');
+      await touch('touchEnd');
+      await run(0.5);
+      const p2 = await pos();
+      await run(0.5);
+      check(dist(p2, await pos()) < 0.05, 'Touch: Loslassen des Sticks hält den Spieler an');
+
+      // Rechts ziehen dreht den Blick, gleichzeitig mit dem Stick
+      const yaw0 = await page.evaluate(() => DAB.P.yaw);
+      await touch('touchStart', [[120, 260, 1]]);
+      await touch('touchStart', [[120, 260, 1], [480, 180, 2]]);
+      await touch('touchMove', [[120, 200, 1], [540, 180, 2]]);
+      await run(0.3);
+      check(await page.evaluate(y => DAB.P.yaw < y - 0.05, yaw0), 'Touch: Ziehen rechts dreht den Blick nach rechts');
+      check(dist(p2, await pos()) > 0.2, 'Touch: Bewegen und Blicken gleichzeitig mit zwei Fingern');
+      await touch('touchEnd');
+      await run(0.1);
+
+      // Feuerknopf: halten feuert, Ziehen vom Knopf aus zielt zugleich, Loslassen beendet das Feuer
+      const center = sel => page.evaluate(sel => { const r = document.querySelector(sel).getBoundingClientRect(); return [Math.round(r.x + r.width / 2), Math.round(r.y + r.height / 2)]; }, sel);
+      const [fx, fy] = await center('#tFire');
+      const shots0 = await page.evaluate(() => DAB.G.shots), yaw1 = await page.evaluate(() => DAB.P.yaw);
+      await touch('touchStart', [[fx, fy, 3]]);
+      await run(0.4);
+      check(await page.evaluate(s => DAB.G.shots > s, shots0), 'Touch: Halten des Feuerknopfs feuert');
+      await touch('touchMove', [[fx - 40, fy, 3]]);
+      await run(0.1);
+      check(await page.evaluate(y => DAB.P.yaw > y + 0.05, yaw1), 'Touch: Ziehen vom Feuerknopf aus dreht den Blick');
+      await touch('touchEnd');
+      await run(0.1);
+      const shots1 = await page.evaluate(() => DAB.G.shots);
+      await run(0.3);
+      check(await page.evaluate(s => DAB.G.shots === s, shots1), 'Touch: nach dem Loslassen kein Feuer mehr');
+
+      // Abfangdrohne wird im Touch-Modus abgelehnt
+      await page.evaluate(() => DAB.startUav());
+      await run(0.2);
+      check(await page.evaluate(() => !DAB.G.uav && DAB.G.play === 'ground'), 'Touch: Abfangdrohne startet im Touch-Modus nicht');
+      check(await page.evaluate(() => DAB.G.msgs.some(m => /NUR MIT MAUS UND TASTATUR/.test(m.txt))), 'Touch: Ablehnung der Abfangdrohne wird gemeldet');
     },
   });
   check(errors.length === 0, 'keine Konsolenfehler' + (errors.length ? ': ' + errors.join(' | ') : ''));

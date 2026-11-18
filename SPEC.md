@@ -42,6 +42,9 @@ Während der Umsetzung getroffen, begründet und änderbar:
   Während der Fahrt steht die Welt still, damit die Animation im Gefecht nichts kostet; dafür sperrt die Ankunft das Feuern für 0,5 s Spielzeit.
   Die Kamera läuft nur drei Geschosse, die Anzeige zählt alle; so dreht sie sich ruhig genug, um keinen Schwindel auszulösen.
   Ausgelöst wird von überall, nicht an der Treppentür, damit der Wechsel im Gefecht schnell bleibt.
+- **E11** Auf Smartphones gibt es eine Touch-Steuerung für den Soldatenmodus im Querformat (#14, Kapitel 20.4).
+  Sie setzt dieselben Eingabezustände wie Maus und Tastatur, damit die Spiellogik für beide Wege gleich bleibt.
+  Die Abfangdrohne bleibt Maus und Tastatur vorbehalten, weil Steigen, Sinken und Kamera eine eigene Bedienung brauchen; per Touch wird sie abgelehnt statt ausgeblendet, damit der Waffentisch überall gleich aussieht.
 
 ### T – Technische Hinweise
 
@@ -106,7 +109,8 @@ Ein Ego-Shooter im Browser mit moderner Grafik nach dem Vorbild von *Arma 3* und
 ### 1.3 Abgrenzung
 
 - Kein Mehrspielermodus, kein Server, keine Konten.
-- Nur Desktop mit Maus und Tastatur; Touch-Geräte werden nicht unterstützt.
+- Desktop mit Maus und Tastatur; auf Smartphones per Touch nur der Soldatenmodus im Querformat (E11, 20.4).
+- Ziel für Touch sind aktuelle Android-Smartphones mit Chrome; iOS Safari ohne Gewähr.
 - Das Spiel stellt Abwehr dar. Angriffe auf Zivilisten sind nicht spielbar; Einschläge in der Stadt sind ein Misserfolg des Spielers.
 
 ---
@@ -185,7 +189,7 @@ menu ──[EINSATZ BEGINNEN]──▶ loading ──▶ brief ──[Klick/Ente
 - **loading:** „STADT WIRD AUFGEBAUT“; nach 60 ms `buildLevel(G.scen)` und `prepareRun()`. Bei einem Fehler zurück ins Menü mit Fehlertext.
 - **brief:** Einsatzbesprechung über der fertigen Szene; die Kamera schwenkt leicht. Der Text hängt von Modus und Waffe ab.
 - **play:** Spiel läuft; `beginPlay()` startet den Ton und fordert Pointer Lock an.
-- **pause:** bei Verlust des Pointer Locks (Esc) oder Taste P. Klick oder „WEITER“ setzt fort.
+- **pause:** bei Verlust des Pointer Locks (Esc) oder Taste P. Im Touch-Modus stattdessen beim Verlassen der Seite (`visibilitychange`), beim Verlassen des Vollbilds oder im Hochformat. Klick oder „WEITER“ setzt fort.
 - **over:** Spielende; nach 1,4 s erscheint die Auswertung. Abstürzende Drohnen und Effekte laufen weiter.
 
 ### 3.2 Anforderungen an den Ablauf
@@ -759,6 +763,33 @@ Alle Klänge werden zur Laufzeit synthetisiert (Web Audio, keine Dateien).
 - Im Pilotenmodus zeigt das Overlay die Drohnen-Steuerung (20.2), sonst die Soldaten-Steuerung (20.1).
 - Startmenü und Overlay lesen die Tastenliste aus derselben Quelle (`KEYLIST` in `index.html`).
 - Beim Start eines Einsatzes ist das Overlay ausgeblendet.
+- Im Touch-Modus (20.4) zeigen Startmenü und Overlay die Touch-Bedienung; der Knopf „?“ ersetzt `H`, in der Pause der Knopf „BEDIENUNG“.
+
+### 20.4 Touch (Soldat)
+
+Der Touch-Modus beginnt mit der ersten Berührung (Touch Events, `touchstart`) und endet bei Maus- oder Tastatureingabe; es gibt keine Einstellung.
+Im Touch-Modus liegt über dem Spiel ein Bedienfeld:
+
+| Eingabe | Wirkung |
+| --- | --- |
+| Linke Bildhälfte, ziehen | Bewegen; der Stick erscheint, wo der Daumen aufsetzt |
+| Rechte Bildhälfte, ziehen | Zielen |
+| FEUER (unten rechts) | Feuer (halten); Ziehen vom Knopf aus zielt zugleich |
+| VISIER | Visier / Optik / Zielgerät ein/aus (Umschalten) |
+| LADEN | Nachladen |
+| WAFFE | nächste Handwaffe: HK416 → AR-15 → Javelin; an der Lafette ausgeblendet. Das MG6 gibt es über den Kontextknopf, weil es durchs Treppenhaus an die Lafette führt |
+| DUCKEN | Ducken ein/aus |
+| Kontextknopf | erscheint nur, wenn eine Aktion möglich ist, und ersetzt die [E]-Hinweise im HUD: Waffe und NEHMEN am Waffentisch (etwa „AR-15 NEHMEN“), AUFZUG, LAFETTE, MUNITION (wie E) oder LAFETTE VERLASSEN (wie X) |
+| ❚❚ (oben rechts) | Pause |
+| ? (oben rechts) | Bedienelemente ein/aus |
+
+- Mehrere Finger wirken gleichzeitig; die Blickempfindlichkeit ist fest und skaliert mit dem Sichtfeld wie bei der Maus.
+- Beim Einsatzstart wechselt das Spiel ins Vollbild und sperrt das Querformat.
+  Im Hochformat pausiert es mit dem Hinweis „BITTE GERÄT DREHEN“.
+- Ein Tipp schließt das Briefing, setzt aus der Pause fort (zurück ins Vollbild) und überspringt die Treppenhaus-Fahrt; während der Fahrt wirken Stick und Knöpfe nicht.
+- Die Abfangdrohne wird im Touch-Modus abgelehnt: Der Griff zum Waffentisch meldet „ABFANGDROHNE NUR MIT MAUS UND TASTATUR“, die Drohne bleibt liegen.
+  Ein gespeicherter Pilotenmodus (`dab_prefs`) startet im Touch-Modus als Soldat.
+  Fliegt die Drohne bereits, bleibt nur der Pausenknopf sichtbar und andere Berührungen wirken nicht.
 
 ---
 
@@ -863,7 +894,7 @@ Prüfbar im Browser (bei verdecktem Tab mit `DAB.run`).
 4. **Grobe Kollision der Wahrzeichen** für die Drohne: Kreis mit 80 % der Höhe, der Eiffelturm wirkt dadurch wie ein massiver Block.
 5. **Gegnerfeuer per Wahrscheinlichkeit:** Feindliche Geschosse sind Darstellung; ob sie treffen, entscheidet der Zufall beim Abfeuern, nicht die Flugbahn.
 6. **Kein Mündungsgeschwindigkeitsanteil der Drohne:** Geschosse der Abfangdrohne erben deren Geschwindigkeit nicht; das hält Vorhalt und Arbel-Prüfung einfach.
-7. **Keine Touch- und Gamepad-Steuerung**, keine Einstellungen für Empfindlichkeit, Grafikqualität oder Lautstärke.
+7. **Keine Gamepad-Steuerung, Touch nur eingeschränkt** (Soldatenmodus im Querformat; Hochformat #15, Drohne #16, weitere Aktionen #17), keine Einstellungen für Empfindlichkeit, Grafikqualität oder Lautstärke.
 8. **Leistung** auf schwacher Hardware nicht gemessen; die Stadt hat einige hunderttausend Eckpunkte.
 9. **Javelin-Angriffsprofil:** nur Direktangriff (DIR); der Top-Attack-Modus (TOP) wird angezeigt, ist aber nicht umgesetzt.
 10. **Eigenes Haus** ist für die Drohne nur bis zur Dachfläche kollidierbar, nicht bis zur Brüstung.

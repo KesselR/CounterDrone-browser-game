@@ -61,6 +61,23 @@
   .bar{width:260px;height:3px;background:rgba(255,255,255,.1);margin-top:14px;overflow:hidden}
   .bar i{display:block;height:100%;width:40%;background:var(--acc);animation:ld 1s infinite linear}
   @keyframes ld{from{transform:translateX(-100%)}to{transform:translateX(260%)}}
+  /* Touch-Bedienfeld (SPEC 20.4): liegt über dem Spiel, unter Menüs und Hilfe-Overlay */
+  #touch{position:fixed;inset:0;z-index:4;touch-action:none;-webkit-touch-callout:none}
+  #tStick{position:absolute;width:120px;height:120px;margin:-60px 0 0 -60px;border:2px solid rgba(230,236,239,.35);border-radius:50%;pointer-events:none}
+  #tStick i{position:absolute;left:50%;top:50%;width:48px;height:48px;margin:-24px 0 0 -24px;border-radius:50%;background:rgba(168,255,106,.45)}
+  .tb{position:absolute;display:flex;align-items:center;justify-content:center;width:64px;height:64px;padding:0;border-radius:50%;border:2px solid rgba(230,236,239,.4);background:rgba(5,8,11,.35);color:var(--txt);font:700 13px Rajdhani,sans-serif;letter-spacing:1px;touch-action:none}
+  .tb.on{border-color:var(--acc);color:var(--acc)}
+  #tFire{right:max(24px,env(safe-area-inset-right));bottom:24px;width:92px;height:92px;border-color:rgba(255,74,61,.7);font-size:16px}
+  #tAds{right:calc(max(24px,env(safe-area-inset-right)) + 108px);bottom:28px}
+  #tReload{right:calc(max(24px,env(safe-area-inset-right)) + 14px);bottom:132px}
+  #tWeap{right:calc(max(24px,env(safe-area-inset-right)) + 92px);bottom:104px}
+  #tCtx{right:calc(max(24px,env(safe-area-inset-right)) + 92px);bottom:186px;width:auto;height:44px;padding:0 16px;border-radius:22px;border-color:var(--acc);color:var(--acc);white-space:nowrap}
+  #tCrouch{left:calc(max(24px,env(safe-area-inset-left)) + 192px);bottom:24px}
+  .tb.s{width:44px;height:44px;top:80px;font-size:16px}
+  #tPause{right:max(12px,env(safe-area-inset-right))}
+  #tHelp{right:calc(max(12px,env(safe-area-inset-right)) + 54px)}
+  #touch.min .tb:not(#tPause){display:none}
+  #rotate{z-index:7;background:#05070a}
   #err{position:fixed;left:12px;bottom:12px;color:#ff8070;font-family:monospace;font-size:13px;z-index:20;white-space:pre-wrap;max-width:80%}
 </style>
 </head>
@@ -81,6 +98,22 @@
   <div class="row" id="rowWeap"></div>
   <button id="btnStart">EINSATZ BEGINNEN</button>
   <div class="keys" id="menuKeys"></div>
+</div>
+
+<div id="touch" class="hidden">
+  <div id="tStick" class="hidden"><i></i></div>
+  <button class="tb" id="tFire" data-act="fire">FEUER</button>
+  <button class="tb" id="tAds" data-act="ads">VISIER</button>
+  <button class="tb" id="tReload" data-act="reload">LADEN</button>
+  <button class="tb" id="tWeap" data-act="weapon">WAFFE</button>
+  <button class="tb" id="tCtx" data-act="ctx"></button>
+  <button class="tb" id="tCrouch" data-act="crouch">DUCKEN</button>
+  <button class="tb s" id="tPause" data-act="pause">❚❚</button>
+  <button class="tb s" id="tHelp" data-act="help">?</button>
+</div>
+
+<div id="rotate" class="screen hidden">
+  <div class="panel" style="text-align:center"><h2>BITTE GERÄT DREHEN</h2><h4>GESPIELT WIRD IM QUERFORMAT</h4></div>
 </div>
 
 <div id="help" class="hidden">
@@ -105,6 +138,7 @@
     <div class="btns" style="justify-content:center">
       <button class="btn p" id="btnResume">WEITER</button>
       <button class="btn" id="btnMenu1">HAUPTMENÜ</button>
+      <button class="btn hidden" id="btnHelp">BEDIENUNG</button>
     </div>
   </div>
 </div>
@@ -2758,6 +2792,16 @@ function nearMount() { // Lafette in Reichweite, an die man sich mit E stellen k
   const m = nearestMount(); return Math.hypot(m.pos.x - camera.position.x, m.pos.z - camera.position.z) < 1.5 ? m : null;
 }
 function nearCrate() { const c = world.crates[0]; if (!c || G.street || G.lift) return false; return Math.hypot(camera.position.x - c.x, camera.position.z - c.z) < (P.onMount ? 6 : 2.6); }
+// Aktion für E (Taste und Kontextknopf), in dieser Reihenfolge: Waffentisch, Aufzug, Lafette, Munitionskiste
+function interaction() {
+  if (G.rackSel) { const s = G.rackSel; return { label: 'NEHMEN', run: () => takeFromRack(s) }; }
+  if (nearLift()) return { label: 'AUFZUG', run: startLift };
+  const m = nearMount();
+  if (m && RT.switchT < 0) return { label: 'LAFETTE', run: () => { requestWeapon('mg6', m); msg('MG6 · LAFETTE ' + m.name, ACC, 2); } };
+  if (nearCrate() && RT.refillT < 0) return { label: 'MUNITION', run: () => { RT.refillT = 0; RT.reloadT = -1; sfxPlay('magOut', 0.5); } };
+  return null;
+}
+function leaveMount() { requestWeapon(RT.prevHand); msg('LAFETTE ' + world.curMount.name + ' VERLASSEN', ACC, 2.5); }
 function updateWeapon(dt) {
   const W = WEAP[G.weapon], A = AMMO[G.weapon], M = VM.cur;
   if (RT.switchT >= 0) { RT.switchT += dt; if (RT.switchT >= 0.25 && RT.switchTo) { setWeapon(RT.switchTo); RT.switchTo = null; } if (RT.switchT >= 0.5) { RT.switchT = -1; RT.raise = false; } }
@@ -3197,6 +3241,7 @@ function drawDronePanel() {
 // Einsatz der Abfangdrohne vom Waffentisch: Sicht wechselt in die Drohne, der Soldat bleibt auf dem Dach
 function fmtTime(s) { s = Math.ceil(s); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); }
 function startUav() {
+  if (touchMode) { sfxPlay('beepLo', 0.4); msg('ABFANGDROHNE NUR MIT MAUS UND TASTATUR', AMB, 2.5); return; } // SPEC 20.4
   if (G.uavCool > 0) { sfxPlay('block', 0.4); msg('ABFANGDROHNE NICHT VERFÜGBAR · NOCH ' + fmtTime(G.uavCool), AMB, 2.5); return; }
   G.uavHp = P.hp; G.uav = true; G.uavDown = false; G.uavEnd = 0;
   stopMG(); javTone(0); mouseL = mouseR = false; VM.ads = 0; J.lock = null; J.locked = false;
@@ -3768,6 +3813,7 @@ const $ = id => document.getElementById(id);
 function show(id, on) { $(id).classList.toggle('hidden', !on); }
 function startMission() {
   show('menu', false); show('loading', true); savePrefs();
+  if (touchMode && G.play === 'drone') G.play = 'ground'; // gespeicherter Pilotenmodus: per Touch als Soldat (SPEC 20.4)
   setTimeout(() => {
     try { buildLevel(G.scen); prepareRun(); showBrief(); }
     catch (e) { console.error(e); $('err').textContent = 'Fehler beim Aufbau: ' + e.message; show('loading', false); show('menu', true); }
@@ -3820,11 +3866,13 @@ function showBrief() {
 function beginPlay() {
   initAudio(); show('brief', false); G.state = 'play'; resetHelp();
   for (const k in keys) keys[k] = false;
-  lockPointer();
+  grabInput();
 }
 function lockPointer() { try { const p = glCanvas.requestPointerLock(); if (p && p.catch) p.catch(() => { }); } catch (e) { } }
 function pauseGame() { if (G.state !== 'play') return; G.state = 'pause'; mouseL = mouseR = false; stopMG(); motorOff(); javTone(0); show('pause', true); }
-function resumeGame() { show('pause', false); G.state = 'play'; lockPointer(); }
+function resumeGame() { show('pause', false); G.state = 'play'; grabInput(); }
+// Maus fangen bzw. per Touch ins Vollbild und Querformat
+function grabInput() { if (touchMode) enterTouchScreen(); else lockPointer(); }
 function toMenu() {
   setMuffle(false);
   if (G.uav) { G.uav = false; G.play = 'ground'; spaceLock = !!keys.Space; }
@@ -3854,6 +3902,11 @@ const KEYLIST = {
     ['E', 'Waffentisch / Aufzug / Munition'], ['X', 'Lafette verlassen / Drohne zurückrufen'],
     ['1 / 2 / 3 / 4', 'HK416 / AR-15 / MG6 / Javelin'], ['B', 'Feuerart · Javelin: Zoom 4×/9×'], ['F', 'Feuerleitsystem an/aus'],
     ['V', 'Feuerleitsystem wechseln'], ['Q', 'Smart-Shooter-Ziel wechseln'], ['T', 'Treppenhaus-Animation an/aus', 'im Einsatz'], ['ESC / P', 'Pause'], ['M', 'Ton an/aus'], ['H', 'Bedienelemente ein/aus', 'im Einsatz'] ] },
+  touch: { title: 'BEDIENUNG · TOUCH', keys: [
+    ['LINKS ZIEHEN', 'Bewegen'], ['RECHTS ZIEHEN', 'Zielen'], ['FEUER', 'Feuer (halten, Ziehen zielt mit)'],
+    ['VISIER', 'Visier / Optik an/aus'], ['LADEN', 'Nachladen'], ['WAFFE', 'HK416 → AR-15 → Javelin'], ['DUCKEN', 'Ducken an/aus'],
+    ['KONTEXT', 'Waffentisch / Aufzug / Lafette / Munition'], ['❚❚', 'Pause'], ['?', 'Bedienelemente ein/aus', 'im Einsatz'],
+    ['DROHNE', 'nur mit Maus und Tastatur'] ] },
   drone: { title: 'BEDIENUNG · ABFANGDROHNE', keys: [
     ['MAUS', 'Flugrichtung'], ['LINKS', 'Manuelles Feuer'], ['RECHTS', 'Zoom'],
     ['W / S', 'Vor / zurück'], ['A / D', 'Seitwärts'], ['LEERTASTE', 'Steigen'],
@@ -3868,7 +3921,7 @@ let helpOn = false, helpShown = null; // helpShown: Modus der angezeigten Liste,
 // Overlay nur im aktiven Spiel und in der Pause; zeigt die Liste des aktuellen Steuerungsmodus
 function inPlayOrPause() { return G.state === 'play' || G.state === 'pause'; }
 function syncHelp() {
-  const mode = helpOn && inPlayOrPause() ? (G.play === 'drone' ? 'drone' : 'ground') : null;
+  const mode = helpOn && inPlayOrPause() ? (G.play === 'drone' ? 'drone' : touchMode ? 'touch' : 'ground') : null;
   if (mode === helpShown) return;
   helpShown = mode;
   show('help', !!mode);
@@ -3879,7 +3932,103 @@ function toggleHelp() { if (!inPlayOrPause()) return; helpOn = !helpOn; syncHelp
 renderKeys($('menuKeys'), KEYLIST.ground, true);
 
 // ---------- Eingabe ----------
+// Touch-Modus (SPEC 20.4): beginnt mit der ersten Berührung, endet bei Maus- oder Tastatureingabe.
+// Touch Events statt Pointer Events: liefern auf Android und iOS verlässlich Koordinaten je Finger (identifier).
+let touchMode = false;
+function setTouchMode(on) {
+  if (on === touchMode) return;
+  touchMode = on;
+  if (!on) releaseTouch();
+  renderKeys($('menuKeys'), on ? KEYLIST.touch : KEYLIST.ground, true);
+  document.querySelector('#brief .go').textContent = on ? 'TIPPEN ZUM STARTEN' : 'KLICKEN ZUM STARTEN';
+  show('btnHelp', on);
+}
+addEventListener('touchstart', () => setTouchMode(true), { capture: true, passive: true });
+addEventListener('pointerdown', e => { if (e.pointerType === 'mouse') setTouchMode(false); }, true);
+addEventListener('pointermove', e => { if (e.pointerType === 'mouse') setTouchMode(false); }, true);
+let touchScreenT = -1e9; // Zeitpunkt der letzten Vollbild-Anforderung: bis die Drehung greift, kein Hochformat-Hinweis
+// Vollbild und Querformat; ohne Nutzergeste oder auf dem iPhone schlägt das fehl, dann bleibt der Hinweis im Hochformat
+function enterTouchScreen() {
+  touchScreenT = performance.now();
+  const d = document.documentElement;
+  if (document.fullscreenElement || !d.requestFullscreen) return;
+  d.requestFullscreen({ navigationUI: 'hide' }).then(() => screen.orientation?.lock?.('landscape')).catch(() => { });
+}
+document.addEventListener('visibilitychange', () => { if (document.hidden && touchMode) pauseGame(); });
+document.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement && touchMode) pauseGame(); });
+// je Bild: Sichtbarkeit, Kontextknopf und Zustände der Knöpfe; im Hochformat pausieren
+function syncTouch() {
+  const portrait = touchMode && innerHeight > innerWidth && inPlayOrPause() && performance.now() - touchScreenT > 1500;
+  show('rotate', portrait);
+  if (portrait && G.state === 'play') pauseGame();
+  const on = touchMode && G.state === 'play';
+  show('touch', on);
+  if (!on) { releaseTouch(); return; }
+  $('touch').classList.toggle('min', G.play === 'drone' || !!(G.lift && G.lift.stairs)); // nur Pausenknopf
+  const c = G.play === 'drone' ? null : touchContext();
+  show('tCtx', !!c);
+  if (c && $('tCtx').textContent !== c.label) $('tCtx').textContent = c.label;
+  show('tWeap', !P.onMount);
+  $('tAds').classList.toggle('on', mouseR);
+  $('tCrouch').classList.toggle('on', P.crouch);
+}
+const RACK_LABEL = { hk416: 'HK416', ar15: 'AR-15', mg6: 'MG6', javelin: 'JAVELIN', uav: 'DROHNE' };
+function touchContext() {
+  const a = interaction();
+  if (a && G.rackSel) a.label = RACK_LABEL[G.rackSel.id] + ' NEHMEN'; // ersetzt den Hinweis unter dem Fadenkreuz
+  return a || (P.onMount && RT.switchT < 0 ? { label: 'LAFETTE VERLASSEN', run: leaveMount } : null);
+}
+const HAND = ['hk416', 'ar15', 'javelin']; // MG6 nur per Kontextknopf: es führt durchs Treppenhaus an die Lafette
+function nextWeapon() { const cur = RT.switchTo || G.weapon; requestWeapon(HAND[(HAND.indexOf(cur) + 1) % HAND.length]); }
+const TOUCH_ACT = {
+  ads: () => { mouseR = !mouseR; },
+  reload: startReload,
+  weapon: nextWeapon,
+  crouch: () => { if (!P.onMount) P.crouch = !P.crouch; },
+  ctx: () => touchContext()?.run(),
+  help: toggleHelp,
+};
+// Finger je identifier: 'stick' (links, Bewegung), 'look' (rechts, Blick) oder 'fire' (Feuerknopf, Ziehen zielt mit)
+const TP = new Map(), STICK = { r: 50, dead: 10 }, TOUCH_LOOK = 2.4; // TOUCH_LOOK: Mausschritte je Pixel Fingerweg
+function stickKeys(dx, dy) {
+  const L = Math.hypot(dx, dy), on = L > STICK.dead, nx = on ? dx / L : 0, ny = on ? dy / L : 0;
+  keys.KeyW = ny < -0.38; keys.KeyS = ny > 0.38; keys.KeyA = nx < -0.38; keys.KeyD = nx > 0.38;
+  const k = Math.min(L, STICK.r) / (L || 1);
+  $('tStick').firstElementChild.style.transform = `translate(${dx * k}px,${dy * k}px)`;
+}
+function fingerDown(f) {
+  const act = f.target.closest?.('[data-act]')?.dataset.act;
+  if (act === 'pause') { pauseGame(); return; }
+  if (G.play === 'drone') return; // Drohne nur mit Maus und Tastatur
+  if (G.lift && G.lift.stairs) { skipStairs(); return; } // Tipp überspringt die Treppenhaus-Fahrt
+  if (act === 'fire') { mouseL = true; TP.set(f.identifier, { kind: 'fire', x: f.clientX, y: f.clientY }); return; }
+  if (act) { TOUCH_ACT[act](); return; }
+  const kind = f.clientX < innerWidth / 2 && ![...TP.values()].some(t => t.kind === 'stick') ? 'stick' : 'look';
+  TP.set(f.identifier, { kind, ox: f.clientX, oy: f.clientY, x: f.clientX, y: f.clientY });
+  if (kind === 'stick') { const s = $('tStick'); s.style.left = f.clientX + 'px'; s.style.top = f.clientY + 'px'; show('tStick', true); stickKeys(0, 0); }
+}
+function fingerMove(f) {
+  const t = TP.get(f.identifier); if (!t) return;
+  if (t.kind === 'stick') stickKeys(f.clientX - t.ox, f.clientY - t.oy);
+  else if (!(G.lift && G.lift.stairs)) look((f.clientX - t.x) * TOUCH_LOOK, (f.clientY - t.y) * TOUCH_LOOK);
+  t.x = f.clientX; t.y = f.clientY;
+}
+function fingerUp(f) {
+  const t = TP.get(f.identifier); if (!t) return;
+  TP.delete(f.identifier);
+  if (t.kind === 'fire') mouseL = false;
+  if (t.kind === 'stick') { stickKeys(0, 0); show('tStick', false); }
+}
+// alle Finger lösen (Pause, Spielende, Wechsel zu Maus und Tastatur), damit nichts weiterläuft
+function releaseTouch() { for (const id of [...TP.keys()]) fingerUp({ identifier: id }); }
+// preventDefault unterdrückt Scrollen, Zoomen und die nachgebildeten Mausereignisse
+const onFingers = (fn, always) => e => { e.preventDefault(); if (always || G.state === 'play') for (const f of e.changedTouches) fn(f); };
+$('touch').addEventListener('touchstart', onFingers(fingerDown), { passive: false });
+$('touch').addEventListener('touchmove', onFingers(fingerMove), { passive: false });
+$('touch').addEventListener('touchend', onFingers(fingerUp, true), { passive: false });
+$('touch').addEventListener('touchcancel', onFingers(fingerUp, true), { passive: false });
 addEventListener('keydown', e => {
+  setTouchMode(false);
   keys[e.code] = true;
   if (e.code === 'KeyH' && !e.repeat) { toggleHelp(); return; }
   if (G.state !== 'play') { if (e.code === 'Enter' && G.state === 'brief') beginPlay(); return; }
@@ -3912,13 +4061,8 @@ addEventListener('keydown', e => {
   if (e.code === 'KeyF') { G.fcsOn = !G.fcsOn; msg(FCS[G.mode].name + (G.fcsOn ? ' AKTIV' : ' AUSGESCHALTET'), G.fcsOn ? '#a8ff6a' : '#ffb347'); sfxPlay(G.fcsOn ? 'beep' : 'beepLo', 0.4); }
   if (e.code === 'KeyV') { G.mode = G.mode === 'smash' ? 'arbel' : 'smash'; const cur = G.weapon; buildViewmodels(); setWeapon(cur); msg('FEUERLEITSYSTEM: ' + FCS[G.mode].name, '#a8ff6a'); savePrefs(); }
   if (e.code === 'KeyQ') { if (W.missile) cycleJavLock(); else cycleLock(); }
-  if (e.code === 'KeyE') {
-    if (G.rackSel) takeFromRack(G.rackSel);
-    else if (nearLift()) startLift();
-    else if (nearMount() && RT.switchT < 0) { const m = nearMount(); requestWeapon('mg6', m); msg('MG6 · LAFETTE ' + m.name, ACC, 2); }
-    else if (nearCrate() && RT.refillT < 0) { RT.refillT = 0; RT.reloadT = -1; sfxPlay('magOut', 0.5); }
-  }
-  if (e.code === 'KeyX' && P.onMount) { requestWeapon(RT.prevHand); msg('LAFETTE ' + world.curMount.name + ' VERLASSEN', ACC, 2.5); }
+  if (e.code === 'KeyE') interaction()?.run();
+  if (e.code === 'KeyX' && P.onMount) leaveMount();
   if (e.code === 'KeyC' || e.code === 'ControlLeft') { if (!P.onMount) P.crouch = !P.crouch; }
   if (e.code === 'KeyM') toggleMute();
   if (e.code === 'KeyP') { if (document.pointerLockElement) document.exitPointerLock(); pauseGame(); }
@@ -3935,11 +4079,15 @@ addEventListener('contextmenu', e => e.preventDefault());
 addEventListener('mousemove', e => {
   if (G.state !== 'play' || (G.lift && G.lift.stairs)) return; // im Treppenhaus bleibt die Blickrichtung für die Ankunft
   if (!document.pointerLockElement && G.hadLock) return;
-  const sens = 0.0021 * (camera.fov / 72);
-  if (G.play === 'drone') { DR.yaw -= e.movementX * sens; DR.pitch = clamp(DR.pitch - e.movementY * sens, -1.35, 1.35); return; }
-  P.yaw -= e.movementX * sens; P.pitch -= e.movementY * sens;
-  VM.mdx += e.movementX; VM.mdy += e.movementY;
+  look(e.movementX, e.movementY);
 });
+// Blick um dx/dy Mausschritte drehen; die Empfindlichkeit skaliert mit dem Sichtfeld (Optik, Zoom)
+function look(dx, dy) {
+  const sens = 0.0021 * (camera.fov / 72);
+  if (G.play === 'drone') { DR.yaw -= dx * sens; DR.pitch = clamp(DR.pitch - dy * sens, -1.35, 1.35); return; }
+  P.yaw -= dx * sens; P.pitch -= dy * sens;
+  VM.mdx += dx; VM.mdy += dy;
+}
 document.addEventListener('pointerlockchange', () => {
   if (document.pointerLockElement === glCanvas) G.hadLock = true;
   else if (G.state === 'play') pauseGame();
@@ -3950,6 +4098,7 @@ $('brief').onclick = beginPlay;
 $('btnResume').onclick = e => { e.stopPropagation(); resumeGame(); };
 $('pause').onclick = () => resumeGame();
 $('btnMenu1').onclick = e => { e.stopPropagation(); toMenu(); };
+$('btnHelp').onclick = e => { e.stopPropagation(); toggleHelp(); }; // Touch: Hilfe in der Pause, wo der Knopf „?“ verdeckt ist
 $('btnRetry').onclick = e => { e.stopPropagation(); show('over', false); startMission(); };
 $('btnMenu2').onclick = e => { e.stopPropagation(); toMenu(); };
 
@@ -4120,18 +4269,22 @@ function drawHUD() {
     if (rs) { // angeschaute Waffe auf dem Waffentisch markieren
       const [x, y] = scr(rs.p), Wr = WEAP[rs.id], cool = rs.id === 'uav' && G.uavCool > 0;
       corners(x, y, clamp((rs.id === 'uav' ? 0.8 : 0.55) * pxPerM(rs.p.distanceTo(o)), 40, 300), cool ? AMB : ACC, 1.6, 0.25);
-      if (rs.id === 'uav') {
+      // Touch: der Kontextknopf nennt Waffe und Aktion, daher nur die Markierung
+      if (rs.id === 'uav' && !touchMode) {
         T(cool ? 'ABFANGDROHNE NICHT VERFÜGBAR · ' + fmtTime(G.uavCool) : '[E]  ABFANGDROHNE STEUERN', cx, cy + 110, cool ? AMB : '#ffffff', 17, 'center');
         T(cool ? 'MUNITION VERSCHOSSEN · DROHNE WIRD AUFMUNITIONIERT' : DRW.name + ' · ' + G.uavAmmo + ' SCHUSS · FUNKREICHWEITE ' + UAV.range + ' m', cx, cy + 132, '#8d9aa3', 12, 'center', MONO, 400);
-      } else {
+      } else if (!touchMode) {
         T('[E]  ' + Wr.name + ' AUFNEHMEN', cx, cy + 110, '#ffffff', 17, 'center');
         T(Wr.cal + (rs.id === 'mg6' ? ' · WIRD AUF DIE LAFETTE GESETZT' : ''), cx, cy + 132, '#8d9aa3', 12, 'center', MONO, 400);
       }
-    } else if (nearLift()) T('[E]  AUFZUG · ' + (G.street ? 'HOCH ZUM DACH' : 'RUNTER ZUR STRASSE'), cx, cy + 110, '#ffffff', 17, 'center');
+    } else if (touchMode) { // Touch: Kontextknopf statt [E]-Hinweisen; nur der Waffentisch braucht einen Hinweis, über dem Fadenkreuz
+      if (nearRack() && RT.switchT < 0) T('WAFFENTISCH · WAFFE ANSCHAUEN', cx, cy - 70, 'rgba(230,236,239,.75)', 14, 'center', MONO, 400);
+    }
+    else if (nearLift()) T('[E]  AUFZUG · ' + (G.street ? 'HOCH ZUM DACH' : 'RUNTER ZUR STRASSE'), cx, cy + 110, '#ffffff', 17, 'center');
     else if (nearMount() && RT.switchT < 0) T('[E]  MG6 BEDIENEN · LAFETTE ' + nearMount().name, cx, cy + 110, '#ffffff', 17, 'center');
     else if (nearRack() && RT.switchT < 0) T('WAFFENTISCH · WAFFE ANSCHAUEN UND [E]', cx, cy + 110, 'rgba(230,236,239,.75)', 14, 'center', MONO, 400);
     else if (nearCrate() && RT.refillT < 0) T('[E]  MUNITION AUFFÜLLEN', cx, cy + 110, '#ffffff', 17, 'center');
-    if (P.onMount && RT.switchT < 0) T('[X]  LAFETTE VERLASSEN', cx, HH - 40, 'rgba(230,236,239,.7)', 13, 'center', MONO, 400);
+    if (P.onMount && RT.switchT < 0 && !touchMode) T('[X]  LAFETTE VERLASSEN', cx, HH - 40, 'rgba(230,236,239,.7)', 13, 'center', MONO, 400);
     if (RT.refillT >= 0) { T('AUFMUNITIONIEREN …', cx, cy + 110, ACC, 16, 'center'); bar(cx - 80, cy + 132, 160, 3, RT.refillT / 1.2, ACC); }
     if (RT.reloadT >= 0) { T(W.id === 'mg6' ? 'GURTKASTEN WECHSELN' : W.missile ? 'NEUES STARTROHR ANSETZEN' : 'NACHLADEN', cx, cy + 46, '#ffffff', 14, 'center', MONO, 400); bar(cx - 60, cy + 64, 120, 3, RT.reloadT / RT.reloadDur, '#ffffff'); }
     else if (A.mag <= W.mag * 0.2 && A.mag > 0 && W.id !== 'mg6') T('[R] NACHLADEN', cx, cy + 46, AMB, 14, 'center', MONO, 400);
@@ -4336,7 +4489,7 @@ function drawRadar() {
 }
 function drawPanels(W, A, S) {
   const r = HW - 24, b = HH - 22;
-  if (G.play === 'drone') drawDronePanel(); else drawWeaponPanel(W, A, r, b);
+  if (G.play === 'drone') drawDronePanel(); else drawWeaponPanel(W, A, touchMode ? r - 200 : r, b); // Touch: links neben den Knöpfen
   drawTopPanels(S, r);
 }
 function drawWeaponPanel(W, A, r, b) {
@@ -4404,7 +4557,7 @@ function frame(now) {
   tick(dt);
 }
 function tick(dt, noRender) {
-  syncHelp();
+  syncHelp(); syncTouch();
   if (!world.group) { drawHUD(); return; }
   if (G.state === 'play' && G.lift && G.lift.stairs) updateLift(dt); // Treppenhaus: die Welt steht still, nur die Fahrt läuft
   else if (G.state === 'play') {

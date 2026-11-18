@@ -36,7 +36,15 @@ Erklärungen zu Namen aus dem Quelltext und Fachbegriffen der [SPEC](SPEC.md).
 | `solveIntercept` | berechnet den Haltepunkt mit Vorhalt und Geschossfall (Smart Shooter, Drohnenturm) |
 | `segBlock` | prüft, ob eine Strecke eine Hauswand schneidet (Geschosse, Sichtlinie) |
 | `playerPoint` | Punkt, auf den Gegner zielen: Spieler oder fliegende Drohne |
-| `KEYLIST` | Tastenliste (Soldat und Abfangdrohne): gemeinsame Quelle für Startmenü und Hilfe-Overlay |
+| `KEYLIST` | Tastenliste (Soldat, Abfangdrohne, Touch): gemeinsame Quelle für Startmenü und Hilfe-Overlay |
+| `touchMode` | Touch-Modus: an nach der ersten Berührung, aus bei Maus- oder Tastatureingabe |
+| `TP` | Touch Points: gehaltene Finger je `identifier` mit ihrer Rolle (Stick, Blick, Feuer) |
+| `STICK` | Maße des schwebenden Sticks (Radius, tote Zone) |
+| `TOUCH_LOOK` | Blickempfindlichkeit per Touch in Mausschritten je Pixel Fingerweg |
+| `TOUCH_ACT` | Aktionen der Touch-Knöpfe nach `data-act` |
+| `HAND` | Reihenfolge des Touch-Knopfs WAFFE |
+| `RACK_LABEL` | Kurznamen der Waffen am Waffentisch für den Kontextknopf |
+| `interaction` | Aktion für E und den Kontextknopf: Waffentisch, Aufzug, Lafette, Munitionskiste |
 | `DAB` | Diagnosezugang in der Browser-Konsole |
 
 ## Fachbegriffe
