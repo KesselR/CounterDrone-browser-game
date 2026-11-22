@@ -8,6 +8,6 @@
   },
   "devDependencies": {
     "markdownlint-cli2": "0.24.1",
-    "playwright-core": "1.65.0"
+    "playwright-core": "1.65.1"
   }
 }
